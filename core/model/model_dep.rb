@@ -19,6 +19,7 @@ require 'model/vmware_esxi'
 require 'model/xenserver'
 require 'model/windows'
 require 'model/coreos'
+require 'model/in_memory'
 
 # level 3 - redhat
 require 'model/redhat_6'
@@ -50,3 +51,4 @@ require 'model/windows_2012_r2'
 
 # level 3 - coreos
 require 'model/coreos_stable'
+require 'model/coreos_in_memory'

@@ -9,8 +9,7 @@ module ProjectHanlon
         # Static config
         @hidden      = false
         @name        = "coreos_stable"
-        @description = "coreos stable"
-        @osversion   = "557"
+        @description = "CoreOS Stable"
 
         from_hash(hash) unless hash == nil
       end
