@@ -5,7 +5,7 @@ module ProjectHanlon
       include(ProjectHanlon::Logging)
 
       # setup an accessor for the ssh_key instance var
-      attr_accessor :ssh_key
+      # attr_accessor :ssh_key
 
       def initialize(hash)
         super(hash)
@@ -14,42 +14,51 @@ module ProjectHanlon
         @name        = "coreos_in_memory"
         @description = "CoreOS In-Memory"
         # initialize SSH key to nil
-        @ssh_key     = nil
+        # @ssh_key     = nil
+        # Default: no cloud config
+        @cloud_config = nil
 
         @req_metadata_hash = {
-          "@hostname_prefix" => {
-            :default     => "node",
-            :example     => "node",
-            :validation  => '^[a-zA-Z0-9][a-zA-Z0-9\-]*$',
-            :required    => true,
-            :description => "node hostname prefix (will append node number)"
-          },
-          "@domainname" => {
-            :default     => "localdomain",
-            :example     => "example.com",
-            :validation  => '^[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9](\.[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])*$',
-            :required    => true,
-            :description => "local domain name (will be used in /etc/hosts file)"
-          },
-          "@ssh_key" => {
-            :default      => "",
-            :example      => "",
-            :validation   => '',
-            :required     => true,
-            :description  => "the (public) SSH key to use when connecting to the CoreOS instance"
-          }
+            "@hostname_prefix" => {
+                :default     => "node",
+                :example     => "node",
+                :validation  => '^[a-zA-Z0-9][a-zA-Z0-9\-]*$',
+                :required    => true,
+                :description => "node hostname prefix (will append node number)"
+            },
+            "@domainname" => {
+                :default     => "localdomain",
+                :example     => "example.com",
+                :validation  => '^[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9](\.[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])*$',
+                :required    => true,
+                :description => "local domain name (will be used in /etc/hosts file)"
+            }
+        }
+        @opt_metadata_hash = {
+            "@cloud_config" => {
+                :default      => "",
+                :example      => "",
+                :validation   => '',
+                :required     => false,
+                :description  => "A yaml containing CoreOS cloud config options"
+            }
         }
         from_hash(hash) unless hash == nil
       end
 
       def callback
         {
-            "ssh-key" => :ssh_key,
+            # "ssh-key" => :ssh_key,
+            "cloud-config" => :cloud_config_call,
         }
       end
 
-      def ssh_key
-        return @ssh_key
+      # def ssh_key
+      #   return @ssh_key
+      # end
+
+      def cloud_config_call
+        return generate_cloud_config(@policy_uuid)
       end
 
       def boot_call(node, policy_uuid)
@@ -68,7 +77,6 @@ module ProjectHanlon
         fsm_action(:boot_call, :boot_call)
         ret
       end
-
 
       # will perform an "install" of CoreOS by booting
       # into an in-memory image
@@ -91,6 +99,14 @@ module ProjectHanlon
         "#{@hostname_prefix}#{@counter.to_s}"
       end
 
+      def cloud_config_yaml
+        if @cloud_config
+          bson_ordered_hash_to_hash(@cloud_config).to_yaml.strip
+        else
+          ""
+        end
+      end
+
       def kernel_path
         "coreos/vmlinuz"
       end
@@ -102,11 +118,17 @@ module ProjectHanlon
       # TODO: make optional
       # This will only affect the boot for install. It is helpful to debug errors
       def autologin_kernel_args
-        "coreos pxe demo"
+        # "coreos pxe demo"
+        "console=tty0 console=ttyS0"
       end
 
       def config
         ProjectHanlon.config
+      end
+
+      def generate_cloud_config(policy_uuid)
+        filepath = template_filepath('cloud_config_in_memory')
+        ERB.new(File.read(filepath)).result(binding)
       end
 
     end

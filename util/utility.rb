@@ -82,6 +82,47 @@ module ProjectHanlon
       in_hash.inject({}) {|h, (k, v)| h[k.sub(/^@/, '')] = v; h }
     end
 
+
+    # converts a BSON::OrderedHash to a regular Ruby Hash
+    # (useful for outputting a hash as YAML without Ruby-specific
+    # extensions being embedded in the resulting YAML file)
+    def bson_ordered_hash_to_hash(bson_ordered_hash)
+      new_hash = {}
+      # loop through the BSON::OrderedHash
+      bson_ordered_hash.each { |key, val|
+        # if the element is a BSON::OrderedHash, then iterate, else if it is
+        # an Array, check each element of the array to see if any of them are
+        # BSON::OrderedHash objects (and if so, convert them), otherwise
+        # just move the value from one hash to the other
+        if val.class == BSON::OrderedHash
+          new_hash[key] = bson_ordered_hash_to_hash(val)
+        elsif val.class == Array
+          new_hash[key] = bson_hash_array_to_hash_array(val)
+        else
+          new_hash[key] = val
+        end
+      }
+      # finally, return the coverted Hash
+      new_hash
+    end
+
+    # used in conjunction with the bson_ordered_hash_to_hash
+    # method (above) to test array elements for BSON::OrderedHash
+    # elements and convert them to regular Ruby Hash elements
+    def bson_hash_array_to_hash_array(array)
+      new_array = []
+      array.each { |elem|
+        if elem.class == BSON::OrderedHash
+          new_array << bson_ordered_hash_to_hash(elem)
+        elsif elem.class == Array
+          new_array << bson_hash_array_to_hash_array(elem)
+        else
+          new_array << elem
+        end
+      }
+      new_array
+    end
+
     def self.encode_symbols_in_hash(obj)
       case obj
       when Hash
