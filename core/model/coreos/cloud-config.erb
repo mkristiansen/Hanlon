@@ -2,7 +2,7 @@
 
 # See CoreOS cloud config for supported options:
 # https://coreos.com/docs/cluster-management/setup/cloudinit-cloud-config/
-cat > /tmp/cloud-config.yaml <<EOF
+cat > /tmp/cloud-config.yaml << EOF
 #cloud-config
 <%= cloud_config_yaml %>
 hostname: <%= hostname %>

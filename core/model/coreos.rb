@@ -21,7 +21,7 @@ module ProjectHanlon
         # Static config
         @hidden      = true
         @template = :linux_deploy
-        @name = "coreos generic"
+        @name = "coreos_generic"
         @description = "CoreOS Generic Model"
         # Metadata vars
         @hostname_prefix = nil
