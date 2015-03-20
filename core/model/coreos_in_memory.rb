@@ -13,8 +13,6 @@ module ProjectHanlon
         @hidden      = false
         @name        = "coreos_in_memory"
         @description = "CoreOS In-Memory"
-        # initialize SSH key to nil
-        # @ssh_key     = nil
         # Default: no cloud config
         @cloud_config = nil
 
@@ -48,14 +46,9 @@ module ProjectHanlon
 
       def callback
         {
-            # "ssh-key" => :ssh_key,
             "cloud-config" => :cloud_config_call,
         }
       end
-
-      # def ssh_key
-      #   return @ssh_key
-      # end
 
       def cloud_config_call
         return generate_cloud_config(@policy_uuid)
@@ -118,7 +111,6 @@ module ProjectHanlon
       # TODO: make optional
       # This will only affect the boot for install. It is helpful to debug errors
       def autologin_kernel_args
-        # "coreos pxe demo"
         "console=tty0 console=ttyS0"
       end
 
