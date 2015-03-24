@@ -41,6 +41,7 @@ require 'model/debian_wheezy'
 
 # level 3 - vmware
 require 'model/vmware_esxi_5'
+require 'model/vmware_esxi_5_dhcp'
 
 # level 3 - xenserver
 require 'model/xenserver_boston'
