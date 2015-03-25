@@ -23,7 +23,7 @@ module ProjectHanlon
         @hidden                  = false
         @template                = :vmware_hypervisor
         @name                    = "vmware_esxi_5_dhcp"
-        @description             = "vmware esxi 5_dhcp"
+        @description             = "VMware ESXi 5 DHCP Deployment"
         @osversion               = "5_dhcp"
         # Metadata vars
         @hostname_prefix         = nil
