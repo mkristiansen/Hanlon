@@ -108,7 +108,6 @@ module ProjectHanlon
 
 
       def postinstall
-        super
         @arg = @args_array.shift
         case @arg
           when "send_ips"

@@ -209,7 +209,7 @@ def disk_type_array():
         vdq_output = eval(output)
         for device in vdq_output:
             if device['State'] == 'Eligible for use by VSAN':
-                if (device['Reason'] == 'Non-local disk') and <%= @configure_disk_to_local %>:
+                if (device['Reason'] == 'Non-local disk'):
                     configure_disk_to_local(device['Name'])
                 if device['IsSSD'] == '1':
                     ssd.append(device['Name'])
@@ -306,7 +306,7 @@ def send_node_ip_callback():
 
 
 def send_postinstall_end():
-    callback_url = <%= callback_url("postinstall", "end") %>
+    callback_url = "<%= callback_url("postinstall", "end") %>"
     urllib2.urlopen(callback_url).read()
 
 
@@ -323,10 +323,11 @@ send_node_ip_callback()
 send_postinstall_end()
 enable_firewall()
 
-<% if @enable_vsan %>
-create_vsan_disk_group()
-join_vsan_cluster("<%= @vsan_uuid %>")
-<% end %>
+if len("<%= @enable_vsan %>") != 0:
+    if <%= @enable_vsan %>:
+        create_vsan_disk_group()
+        join_vsan_cluster("<%= @vsan_uuid %>")
+
 
 <% for @pkg in @packages %>
 install_esxi_packages("<%= @pkg['url'] %>", <%= @pkg['force'] ? "True" : "False" %>)
