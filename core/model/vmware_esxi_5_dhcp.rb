@@ -42,10 +42,10 @@ module ProjectHanlon
         @vcenter_name            = nil
         @vcenter_datacenter_path = nil
         @vcenter_cluster_path    = nil
-        @enable_vsan             = "" 
+        @enable_vsan             = "False"
         @vsan_uuid               = UUID.generate
         @packages                = []
-	      @configure_disk_to_local = ""
+	      @configure_disk_to_local = "False"
         # Metadata
         @req_metadata_hash       = {
             "@esx_license"             => { :default     => "",
@@ -108,7 +108,7 @@ module ProjectHanlon
 
 
       def postinstall
-        super()
+        super
         @arg = @args_array.shift
         case @arg
           when "send_ips"
