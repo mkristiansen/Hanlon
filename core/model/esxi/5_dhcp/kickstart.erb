@@ -310,8 +310,18 @@ def send_postinstall_end():
     urllib2.urlopen(callback_url).read()
 
 
+def enable_firewall():
+    output, err, return_code = execute_process("esxcli network firewall set --enabled yes")
+
+
+def disable_firewall():
+    output, err, return_code = execute_process("esxcli network firewall set --enabled no")
+
+
+disable_firewall()
 send_node_ip_callback()
 send_postinstall_end()
+enable_firewall()
 
 <% if @enable_vsan %>
 create_vsan_disk_group()
