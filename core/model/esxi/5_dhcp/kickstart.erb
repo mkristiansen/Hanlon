@@ -44,13 +44,6 @@ esxcli system syslog config logger set --id=vmkernel --rotate=20 --size=2048
 esxcli system syslog config logger set --id=fdm --rotate=20
 esxcli system syslog config logger set --id=vpxa --rotate=20
 
-### NTP CONFIGURATIONS ###
-cat > /etc/ntp.conf << __NTP_CONFIG__
-restrict default kod nomodify notrap noquerynopeer
-restrict 127.0.0.1
-server <%= @ntpserver %>
-__NTP_CONFIG__
-/sbin/chkconfig --level 345 ntpd on
 
 ### FIREWALL CONFIGURATION ###
 
