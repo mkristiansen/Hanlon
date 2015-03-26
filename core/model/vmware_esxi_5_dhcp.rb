@@ -42,10 +42,7 @@ module ProjectHanlon
         @vcenter_name            = nil
         @vcenter_datacenter_path = nil
         @vcenter_cluster_path    = nil
-        @enable_vsan             = "False"
-        @vsan_uuid               = UUID.generate
         @packages                = []
-	      @configure_disk_to_local = "False"
         # Metadata
         @req_metadata_hash       = {
             "@esx_license"             => { :default     => "",
@@ -81,26 +78,11 @@ module ProjectHanlon
                                             :validation  => '^[a-zA-Z\d-]{3,}$',
                                             :required    => false,
                                             :description => "Optional for broker use: the vCenter Cluster to place ESXi node in" },
-            "@enable_vsan"       => { :default     => "False",
-                                           :example     => "",
-                                           :validation  => '',
-                                           :required    => false,
-                                           :description => "Join vSAN cluster and create vSAN disk groups" },
-            "@vsan_uuid"               => { :default     => "",
-                                            :example     => "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-                                            :validation  => '^[a-z\d]{8}-[a-z\d]{4}-[a-z\d]{4}-[a-z\d]{4}-[a-z\d]{12}$',
-                                            :required    => false,
-                                            :description => "VMware vSAN UUID.  Use the default or type in" },
             "@packages"                => { :default     => "",
                                             :example     => "",
                                             :validation  => '',
                                             :required    => false,
-                                            :description => "Optional for broker use: the vCenter Cluster to place ESXi node in" },
-	    "@configure_disk_to_local" => { :default     => "False",
-                                            :example     => "",
-                                            :validation  => '',
-                                            :required    => false,
-                                            :description => "Optional for vSAN, should we use non-local disks in vSAN disk group." }
+                                            :description => "Optional for broker use: the vCenter Cluster to place ESXi node in" }
         }
 
         from_hash(hash) unless hash == nil
