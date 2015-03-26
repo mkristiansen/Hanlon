@@ -120,7 +120,7 @@ syslog.syslog("%s Configuring License" % init_syslog_key)
 execute_vimcmd_command("vimsvc/license --set <%= @esx_license %>")
 
 syslog.syslog("%s Configuring firewall" % init_syslog_key)
-firewall_services = 'syslog', 'sshClient', 'ntpClient', 'updateManager', 'httpClient', 'netdump'
+firewall_services = 'syslog', 'sshClient', 'ntpClient', 'updateManager', 'httpClient'
 for fwsvc in firewall_services:
     execute_esxcli_command("network firewall ruleset set --ruleset-id %s --enabled yes" % fwsvc)
 
