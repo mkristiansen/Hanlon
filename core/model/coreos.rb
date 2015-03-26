@@ -242,7 +242,7 @@ module ProjectHanlon
 
       def cloud_config_yaml
         if @cloud_config
-          @cloud_config.to_yaml
+          bson_ordered_hash_to_hash(@cloud_config).to_yaml.strip
         else
           ""
         end
