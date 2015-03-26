@@ -35,7 +35,6 @@ returns returns output (string), err (string), return_code (int)
 def execute_process(cmd_line):
     try:
         process = Popen(cmd_line, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
-        process.wait()
         output, err = process.communicate()
         return_code = process.returncode
         return output, err, return_code
@@ -93,6 +92,20 @@ def send_postinstall_end():
         sys.exit(1)
 
 
+def rename_datastore():
+    try:
+        output = execute_esxcli_command("--formatter keyvalue storage filesystem list")
+        match = re.findall("FilesystemVolume.VolumeName.string=datastore1", output)
+        if len(match) != 0:
+            syslog.syslog("%s Renaming Datastore" % init_syslog_key)
+            hostname = socket.gethostname().split(".")[0]
+            execute_vimcmd_command("hostsvc/datastore/rename datastore1 %s-local-storage-1" % hostname)
+
+    except Exception as e:
+        syslog.syslog("%s ERROR %s in send_node_ip_callback()" % (init_syslog_key, e.message))
+        sys.exit(1)
+
+
 syslog.syslog("%s Enabling and starting SSH" % init_syslog_key)
 execute_vimcmd_command("hostsvc/enable_ssh")
 execute_vimcmd_command("hostsvc/start_ssh")
@@ -101,9 +114,7 @@ syslog.syslog("%s Enabling and Starting ESXi Shell" % init_syslog_key)
 execute_vimcmd_command("hostsvc/enable_esx_shell")
 execute_vimcmd_command("hostsvc/start_esx_shell")
 
-syslog.syslog("%s Renaming Datastore" % init_syslog_key)
-hostname = socket.gethostname().split(".")[0]
-execute_vimcmd_command("hostsvc/datastore/rename datastore1 %s-local-storage-1" % hostname)
+rename_datastore()
 
 syslog.syslog("%s Configuring License" % init_syslog_key)
 execute_vimcmd_command("vimsvc/license --set <%= @esx_license %>")
@@ -163,7 +174,6 @@ returns returns output (string), err (string), return_code (int)
 def execute_process(cmd_line):
     try:
         process = Popen(cmd_line, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
-        process.wait()
         output, err = process.communicate()
         return_code = process.returncode
         return output, err, return_code
