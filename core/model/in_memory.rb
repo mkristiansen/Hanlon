@@ -41,25 +41,42 @@ module ProjectHanlon
       #  For state => {action => state, ..}
       def fsm_tree
         {
-          :init => {
-            :mk_call       => :init,
-            :boot_call     => :init,
-            :timeout       => :timeout_error,
-            :error         => :error_catch,
-            :else          => :init,
-          },
-          :timeout_error => {
-            :mk_call   => :timeout_error,
-            :boot_call => :timeout_error,
-            :else      => :timeout_error,
-            :reset     => :init
-          },
-          :error_catch => {
-            :mk_call   => :error_catch,
-            :boot_call => :error_catch,
-            :else      => :error_catch,
-            :reset     => :init
-          },
+            :init => {
+                :mk_call          => :init,
+                :boot_call        => :init,
+                :timeout          => :timeout_error,
+                :error            => :error_catch,
+                :else             => :init,
+                :install_complete => :os_complete
+            },
+            :postinstall => {
+                :mk_call            => :postinstall,
+                :boot_call          => :postinstall,
+                :os_boot            => :postinstall,
+                :os_final           => :os_complete,
+                :post_error         => :error_catch,
+                :post_timeout       => :timeout_error,
+                :error              => :error_catch,
+                :else               => :postinstall
+            },
+            :os_complete => {
+                :mk_call   => :os_complete,
+                :boot_call => :os_complete,
+                :else      => :os_complete,
+                :reset     => :init
+            },
+            :timeout_error => {
+                :mk_call   => :timeout_error,
+                :boot_call => :timeout_error,
+                :else      => :timeout_error,
+                :reset     => :init
+            },
+            :error_catch => {
+                :mk_call   => :error_catch,
+                :boot_call => :error_catch,
+                :else      => :error_catch,
+                :reset     => :init
+            },
         }
       end
 
@@ -67,7 +84,7 @@ module ProjectHanlon
         super(node, policy_uuid)
         case @current_state
           # We need to reboot
-          when :init, :preinstall
+          when :init, :postinstall, :os_complete, :broker_check, :broker_fail, :broker_success
             ret = [:reboot, {}]
           when :timeout_error, :error_catch
             ret = [:acknowledge, {}]

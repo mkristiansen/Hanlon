@@ -75,8 +75,8 @@ module ProjectHanlon
 
       def callback
         {
-          "postinstall" => :postinstall_call,
-          "cloud-config.sh" => :cloud_config_call,
+          "postinstall"  => :postinstall_call,
+          "cloud-config" => :cloud_config_call,
         }
       end
 
@@ -242,7 +242,7 @@ module ProjectHanlon
 
       def cloud_config_yaml
         if @cloud_config
-          @cloud_config.to_yaml
+          bson_ordered_hash_to_hash(@cloud_config).to_yaml.strip
         else
           ""
         end
