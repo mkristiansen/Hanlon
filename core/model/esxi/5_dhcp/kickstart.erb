@@ -122,7 +122,7 @@ execute_vimcmd_command("vimsvc/license --set <%= @esx_license %>")
 syslog.syslog("%s Configuring firewall" % init_syslog_key)
 firewall_services = 'syslog', 'sshClient', 'ntpClient', 'updateManager', 'httpClient', 'netdump'
 for fwsvc in firewall_services:
-    execute_esxcli_command("esxcli network firewall ruleset set --ruleset-id %s --enabled yes" % fwsvc)
+    execute_esxcli_command("network firewall ruleset set --ruleset-id %s --enabled yes" % fwsvc)
 
 syslog.syslog("%s Backing up ESXi configuration persisting changes" % init_syslog_key)
 execute_process("/sbin/auto-backup.sh")
