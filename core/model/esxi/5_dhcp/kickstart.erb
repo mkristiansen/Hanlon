@@ -12,67 +12,124 @@ reboot
 #Send callback to hanlon that the kickstart is complete
 wget <%= api_svc_uri %>/policy/callback/<%= @policy_uuid %>/kickstart/end
 
-%firstboot --interpreter=busybox
 
-vsan_syslog_key = "VSAN-KS"
+%firstboot --interpreter=python
+from subprocess import Popen, PIPE
+import syslog
+import sys
+import re
+import socket
+import traceback
+import urllib2
+import time
 
-logger $vsan_syslog_key " Enabling & Starting SSH"
-vim-cmd hostsvc/enable_ssh
-vim-cmd hostsvc/start_ssh
-
-logger $vsan_syslog_key " Enabling & Starting ESXi Shell"
-vim-cmd hostsvc/enable_esx_shell
-vim-cmd hostsvc/start_esx_shell
-
-logger $vsan_syslog_key " Reconfiguring VSAN Default Policy"
-esxcli vsan policy setdefault -c vdisk -p "((\"hostFailuresToTolerate\" i1) (\"forceProvisioning\" i1))"
-esxcli vsan policy setdefault -c vmnamespace -p "((\"hostFailuresToTolerate\" i1) (\"forceProvisioning\" i1))"
- 
-logger $vsan_syslog_key "Enabling VSAN Traffic on vmk0"
-esxcli vsan network ipv4 add -i vmk0
-
-logger $vsan_syslog_key "Renaming datastore1"
-vim-cmd hostsvc/datastore/rename datastore1 "$(hostname -s)-local-storage-1"
-
-# assign license
-vim-cmd vimsvc/license --set <%= @esx_license %>
+init_syslog_key = "HANLON-KS"
 
 
-# change the individual syslog rotation count
-esxcli system syslog config logger set --id=hostd --rotate=20 --size=2048
-esxcli system syslog config logger set --id=vmkernel --rotate=20 --size=2048
-esxcli system syslog config logger set --id=fdm --rotate=20
-esxcli system syslog config logger set --id=vpxa --rotate=20
+'''
+Executes process using the shell, waits for the command to exit and
+returns returns output (string), err (string), return_code (int)
+'''
 
 
-### FIREWALL CONFIGURATION ###
-
-# enable firewall
-esxcli network firewall set --default-action false --enabled yes
-
-# services to enable by default
-FIREWALL_SERVICES='syslog sshClient ntpClient updateManager httpClient netdump'
-for SERVICE in ${FIREWALL_SERVICES}
-do
-esxcli network firewall ruleset set --ruleset-id ${SERVICE} --enabled yes
-done
-
-# backup ESXi configuration to persist changes
-/sbin/auto-backup.sh
-
-# enter maintenance mode
-vim-cmd hostsvc/maintenance_mode_enter
-
-# copy %first boot script logs to persisted datastore
-cp /var/log/hostd.log "/vmfs/volumes/$(hostname -s)-local-storage-1/firstboot-hostd.log"
-cp /var/log/esxi_install.log "/vmfs/volumes/$(hostname -s)-local-storage-1/firstboot-esxi_install.log"
-
-logger $vsan_syslog_key " Hanlon Postinstall complete"
-#Send callback to hanlon that the postinstall is complete
+def execute_process(cmd_line):
+    try:
+        process = Popen(cmd_line, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
+        process.wait()
+        output, err = process.communicate()
+        return_code = process.returncode
+        return output, err, return_code
+    except Exception as e:
+        syslog.syslog("Exception %s in execute_process()" % str(e))
+        sys.exit(1)
 
 
+def execute_esxcli_command(esxcli_args):
+    cmd_line = "esxcli %s" % esxcli_args
+    try:
+        output, err, return_code = execute_process(cmd_line)
+        if return_code != 0:
+            syslog.syslog("%s ERROR %s in esxcli %s" % (init_syslog_key, err, esxcli_args))
+            sys.exit(1)
+        else:
+            return output
+    except Exception as e:
+        syslog.syslog("%s ERROR %s in esxcli %s" % (init_syslog_key, e.message, esxcli_args))
+        sys.exit(1)
 
-## not sure what to do about the reboot
+
+def execute_vimcmd_command(vimcmd_args):
+    cmd_line = "vim-cmd %s" % vimcmd_args
+    try:
+        output, err, return_code = execute_process(cmd_line)
+        if return_code != 0:
+            syslog.syslog("%s ERROR %s in vim-cmd %s" % (init_syslog_key, err, vimcmd_args))
+            sys.exit(1)
+        else:
+            return output
+    except Exception as e:
+        syslog.syslog("%s ERROR %s in vim-cmd %s" % (init_syslog_key, e.message, vimcmd_args))
+        sys.exit(1)
+
+
+def send_node_ip_callback():
+    try:
+        output = execute_esxcli_command("--formatter keyvalue network ip interface ipv4 get -i vmk0")
+        match = re.findall("IPv4Interface.IPv4Address.string=(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", output)
+        if len(match) != 0:
+            callback_url = "<%= callback_url("postinstall", "send_ips") %>/%s" % match[0]
+            urllib2.urlopen(callback_url).read()
+    except Exception as e:
+        syslog.syslog("%s ERROR %s in send_node_ip_callback()" % (init_syslog_key, e.message))
+        sys.exit(1)
+
+
+def send_postinstall_end():
+    try:
+        callback_url = "<%= callback_url("postinstall", "end") %>"
+        urllib2.urlopen(callback_url).read()
+    except Exception as e:
+        syslog.syslog("%s ERROR %s in send_postinstall_end()" % (init_syslog_key, e.message))
+        sys.exit(1)
+
+
+syslog.syslog("%s Enabling and starting SSH" % init_syslog_key)
+execute_vimcmd_command("hostsvc/enable_ssh")
+execute_vimcmd_command("hostsvc/start_ssh")
+
+syslog.syslog("%s Enabling and Starting ESXi Shell" % init_syslog_key)
+execute_vimcmd_command("hostsvc/enable_esx_shell")
+execute_vimcmd_command("hostsvc/start_esx_shell")
+
+syslog.syslog("%s Renaming Datastore" % init_syslog_key)
+hostname = socket.gethostname().split(".")[0]
+execute_vimcmd_command("hostsvc/datastore/rename datastore1 %s-local-storage-1" % hostname)
+
+syslog.syslog("%s Configuring License" % init_syslog_key)
+execute_vimcmd_command("vimsvc/license --set <%= @esx_license %>")
+
+execute_esxcli_command("network firewall set --default-action false --enabled yes")
+firewall_services = 'syslog', 'sshClient', 'ntpClient', 'updateManager', 'httpClient', 'netdump'
+for fwsvc in firewall_services:
+    execute_esxcli_command("esxcli network firewall ruleset set --ruleset-id %s --enabled yes" % fwsvc)
+
+syslog.syslog("%s Backing up ESXi configuration persisting changes" % init_syslog_key)
+execute_process("/sbin/auto-backup.sh")
+
+syslog.syslog("%s Temporarily disabling the firewall" % init_syslog_key)
+execute_esxcli_command("network firewall set --enabled no")
+
+#Sleeping, we have seen a race condition here.
+time.sleep(10)
+syslog.syslog("%s Sending callback for postinstall send_ip" % init_syslog_key)
+send_node_ip_callback()
+
+syslog.syslog("%s Sending callback for postinstall end" % init_syslog_key)
+send_postinstall_end()
+
+syslog.syslog("%s Re-enabling the firewall" % init_syslog_key)
+execute_esxcli_command("network firewall set --enabled yes")
+
 
 %firstboot --interpreter=python
 
