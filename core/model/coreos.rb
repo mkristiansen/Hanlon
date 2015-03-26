@@ -75,8 +75,8 @@ module ProjectHanlon
 
       def callback
         {
-          "postinstall" => :postinstall_call,
-          "cloud-config.sh" => :cloud_config_call,
+          "postinstall"  => :postinstall_call,
+          "cloud-config" => :cloud_config_call,
         }
       end
 

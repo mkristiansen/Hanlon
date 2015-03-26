@@ -46,6 +46,7 @@ module ProjectHanlon
 
       def callback
         {
+            "postinstall"  => :postinstall_call,
             "cloud-config" => :cloud_config_call,
         }
       end
@@ -54,10 +55,25 @@ module ProjectHanlon
         return generate_cloud_config(@policy_uuid)
       end
 
+      def postinstall_call
+        @arg = @args_array.shift
+        case @arg
+          when "complete"
+            fsm_action(:install_complete, :os_complete)
+            return
+          when "install_fail"
+            fsm_action(:post_error, :os_complete)
+            return
+          else
+            fsm_action(@arg.to_sym, :postinstall)
+            return
+        end
+      end
+
       def boot_call(node, policy_uuid)
         super(node, policy_uuid)
         case @current_state
-          when :init, :preinstall
+          when :init, :postinstall, :os_complete, :broker_check, :broker_fail, :broker_success, :complete_no_broker
             @result = "Starting CoreOS In-Memory model boot"
             ret = start_install(node, policy_uuid)
           when :timeout_error, :error_catch
@@ -84,7 +100,7 @@ module ProjectHanlon
       end
 
       def kernel_args(policy_uuid)
-        filepath = template_filepath('kernel_args_in_memory')
+        filepath = template_filepath('kernel_args')
         ERB.new(File.read(filepath)).result(binding)
       end
 
@@ -94,10 +110,23 @@ module ProjectHanlon
 
       def cloud_config_yaml
         if @cloud_config
-          bson_ordered_hash_to_hash(@cloud_config).to_yaml.strip
+          # perform a deep copy of the @cloud_config instance variable
+          # (we'll be adding to it, below, so we need a copy to avoid
+          # adding to the instance variable itself)
+          config_hash = Marshal.load(Marshal.dump(@cloud_config))
         else
-          ""
+          config_hash = {}
         end
+        if @current_state == :init
+          config_hash['coreos'] = {} unless config_hash['coreos']
+          config_hash['coreos']['units'] = [] unless config_hash['coreos']['units']
+          config_hash['coreos']['units'] << {
+              'name' => 'callback.service',
+              'command' => 'start',
+              'content' => "[Unit]\nDescription=Runs the OS Complete Callback\n\n[Service]\nType=oneshot\nExecStart=/bin/sh -c \"curl #{callback_url("postinstall", "complete")} || curl #{callback_url("postinstall", "install_fail")}\"\n"
+          }
+        end
+        bson_ordered_hash_to_hash(config_hash).to_yaml.strip
       end
 
       def kernel_path
