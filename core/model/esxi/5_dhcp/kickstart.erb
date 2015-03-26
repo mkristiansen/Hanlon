@@ -356,32 +356,6 @@ def str_to_bool(s):
         return False
 
 
-def send_node_ip_callback():
-    output, err, return_code = execute_process("esxcli --formatter keyvalue network ip interface ipv4 get -i vmk0")
-    match = re.findall("IPv4Interface.IPv4Address.string=(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", output)
-    if len(match) != 0:
-        callback_url = "<%= callback_url("postinstall", "send_ips") %>/%s" % match[0]
-        urllib2.urlopen(callback_url).read()
-
-
-def send_postinstall_end():
-    callback_url = "<%= callback_url("postinstall", "end") %>"
-    urllib2.urlopen(callback_url).read()
-
-
-def enable_firewall():
-    output, err, return_code = execute_process("esxcli network firewall set --enabled yes")
-
-
-def disable_firewall():
-    output, err, return_code = execute_process("esxcli network firewall set --enabled no")
-
-
-disable_firewall()
-send_node_ip_callback()
-send_postinstall_end()
-enable_firewall()
-
 enable_vsan_string = "<%= @enable_vsan %>"
 
 if len(enable_vsan_string) != 0:
