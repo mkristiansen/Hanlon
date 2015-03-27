@@ -6,6 +6,7 @@ require 'ipaddr'
 require 'facter'
 require 'facter/util/ip'
 require 'logging/logger'
+require 'mkmf'
 
 require 'config/common'
 
@@ -15,24 +16,82 @@ require 'config/common'
 module Facter::Util::IP
 
   def self.get_interface_value(interface, label)
-    tmp1 = []
+    # Linux changes the MAC address reported via ifconfig when an ethernet interface
+    # becomes a slave of a bonding device to the master MAC address.
+    # We have to dig a bit to get the original/real MAC address of the interface.
+    bonddev = get_bonding_master(interface)
+    if label == 'macaddress' and bonddev
+      bondinfo = IO.readlines("/proc/net/bonding/#{bonddev}")
+      hwaddrre = /^Slave Interface: #{interface}\n[^\n].+?\nPermanent HW addr: (([0-9a-fA-F]{2}:?)*)$/m
+      return hwaddrre.match(bondinfo.to_s)[1].upcase
+    end
+    # otherwise, get the value associated with that label
+    # (using either the 'ip' or 'ifconfig' command)
+    get_single_interface_value(interface, label)
+  end
 
-    # Pull each regex out of the map.
-    REGEX_MAP.each { |kernel, map|
-      regex = map[label.to_sym]
+  def self.get_interfaces
+    # search for 'ip' executable
+    interface_info_cmd = find_executable0('ip', nil)
+    if interface_info_cmd
+      return %x{ip link | grep ^[0-9] | awk '{print $2}'}.gsub(":\n","\n").split.reject { |val| val == 'lo' }
+    end
+    # if 'ip' was not found, search for 'ifconfig'
+    interface_info_cmd = find_executable0('ifconfig', nil)
+    # and return the results
+    if interface_info_cmd
+      output = %x{#{interface_info_cmd} -a}
+      # We get lots of warnings on platforms that don't get an output
+      # made.
+      if output
+        return output.scan(/^\w+[.:]?\d+/)
+      end
+    end
+    []
+  end
 
-      # Linux changes the MAC address reported via ifconfig when an ethernet interface
-      # becomes a slave of a bonding device to the master MAC address.
-      # We have to dig a bit to get the original/real MAC address of the interface.
-      bonddev = get_bonding_master(interface)
-      if label == 'macaddress' and bonddev
-        bondinfo = IO.readlines("/proc/net/bonding/#{bonddev}")
-        hwaddrre = /^Slave Interface: #{interface}\n[^\n].+?\nPermanent HW addr: (([0-9a-fA-F]{2}:?)*)$/m
-        value = hwaddrre.match(bondinfo.to_s)[1].upcase
-      else
-        output_int = get_single_interface_output(interface)
+  def self.get_single_interface_value(interface, label)
+    # search for 'ip' executable
+    interface_info_cmd = find_executable0('ip', nil)
+    # if we find the 'ip' executable, then use that to obtain
+    # the value associated with the label that was passed in
+    # Note; we currently only support the 'netmask', 'ipaddress'
+    # 'ipaddress6', and 'macaddress' labels when using the 'ip'
+    # command...those correspond to the labels supported in the
+    # REGEX_MAP defined in Facter::Util::IP
+    if interface_info_cmd
+      case label
+        when 'netmask'
+          cidr_str = %x{#{interface_info_cmd} route show dev #{interface} | grep -v '^default' | awk '{print $1}'}.strip
+          cidr = /^[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\/([\d]{1,2})$/.match(cidr_str)[1].to_i
+          output = cidr_to_netmask(cidr)
+        when 'ipaddress'
+          output = %x{#{interface_info_cmd} route show dev #{interface} | grep -v '^default' | awk '{print $7}'}.strip
+        when 'ipaddress6'
+          output = %x{#{interface_info_cmd} -6 addr show #{interface} | grep inet6 | awk '{print $2}'}.strip
+        when 'macaddress'
+          output = %x{#{interface_info_cmd} link show #{interface} | grep link | awk '{print $2}'}.strip
+        when 'mtu'
+          output = %x{#{interface_info_cmd} link show #{interface} | grep mtu | awk '{print $5}'}.strip
+        else
+          output = ''
+      end
+      return output
+    end
+    # if 'ip' was not found, search for 'ifconfig'
+    interface_info_cmd = find_executable0('ifconfig', nil)
+    # if 'ifconfig' was found, parse the output of that command to obtain the
+    # requested field
+    if interface_info_cmd
+      # in this case, need to parse the output of the
+      # 'ifconfig' command (which varies from kernel to
+      # kernel) to find the value that was requested
+      REGEX_MAP.each { |kernel, map|
+        regex = map[label.to_sym]
+        tmp1 = []
+        output = %x{#{interface_info_cmd} #{interface}}
         if interface != /^lo[0:]?\d?/
-          output_int.split('\n').each do |s|
+          output.split('\n').each do |s|
             if s =~ regex
               value = $1
               if label == 'netmask' && convert_from_hex?(kernel)
@@ -42,41 +101,33 @@ module Facter::Util::IP
             end
           end
         end
-
         if tmp1
           value = tmp1.shift
           return value if value
         end
-      end
-    }
-    return ''
+      }
+    end
+    ''
   end
 
-  def self.get_interfaces
-    # first, try one location
-    output = %x{/sbin/ifconfig -a}
-    unless output.length > 0
-      # that didn't work, so try the other
-      output = %x{/usr/sbin/ifconfig -a}
-    end
+  private
 
-    # We get lots of warnings on platforms that don't get an output
-    # made.
-    if output
-      output.scan(/^\w+[.:]?\d+/)
-    else
-      []
+  def self.unpack_ip(packed_ip)
+    octets = []
+    4.times do
+      octet = packed_ip & 0xFF
+      octets.unshift(octet.to_s)
+      packed_ip = packed_ip >> 8
     end
+    ip = octets.join('.')
   end
 
-  def self.get_single_interface_output(interface)
-    # first, try one location
-    output = %x{/sbin/ifconfig #{interface}}
-    unless output.length > 0
-      # that didn't work, so try the other
-      output = %x{/usr/sbin/ifconfig #{interface}}
-    end
-    output
+  def self.cidr_to_packed_ip(cidr)
+    (("1"*cidr)+("0"*(32-cidr))).to_i(2)
+  end
+
+  def self.cidr_to_netmask(cidr)
+    unpack_ip(cidr_to_packed_ip(Integer(cidr)))
   end
 
 end
@@ -224,6 +275,8 @@ module ProjectHanlon
           netmask = Facter::Util::IP.get_interface_value(interface_name,'netmask')
           # skip to next if interface does not have an ip address assinged
           next if ip_addr == ""
+          # convert our IP address and netmask to a subnet string
+          # in CIDR notation
           subnet_str = IPAddr.new("#{ip_addr}/#{netmask}").to_s
           subnet_str_array << "#{subnet_str}/#{netmask_to_cidr(netmask)}"
         }
