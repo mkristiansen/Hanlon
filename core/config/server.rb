@@ -31,12 +31,7 @@ module Facter::Util::IP
   end
 
   def self.get_interfaces
-    # search for 'ip' executable
-    interface_info_cmd = find_executable0('ip', nil)
-    if interface_info_cmd
-      return %x{ip link | grep ^[0-9] | awk '{print $2}'}.gsub(":\n","\n").split.reject { |val| val == 'lo' }
-    end
-    # if 'ip' was not found, search for 'ifconfig'
+    # search for 'ifconfig'
     interface_info_cmd = find_executable0('ifconfig', nil)
     # and return the results
     if interface_info_cmd
@@ -47,44 +42,16 @@ module Facter::Util::IP
         return output.scan(/^\w+[.:]?\d+/)
       end
     end
+    # if 'ifconfig' was not found, search for 'ip'
+    interface_info_cmd = find_executable0('ip', nil)
+    if interface_info_cmd
+      return %x{ip link | grep ^[0-9] | awk '{print $2}'}.gsub(":\n","\n").split.reject { |val| val == 'lo' }
+    end
     []
   end
 
   def self.get_single_interface_value(interface, label)
-    # search for 'ip' executable
-    interface_info_cmd = find_executable0('ip', nil)
-    # if we find the 'ip' executable, then use that to obtain
-    # the value associated with the label that was passed in
-    # Note; we currently only support the 'netmask', 'ipaddress'
-    # 'ipaddress6', and 'macaddress' labels when using the 'ip'
-    # command...those correspond to the labels supported in the
-    # REGEX_MAP defined in Facter::Util::IP
-    if interface_info_cmd
-      case label
-        when 'netmask'
-puts "interface_info_cmd => '#{interface_info_cmd}'"
-puts "interface_info_cmd => '#{interface}'"
-test = %x{#{interface_info_cmd} route show dev #{interface}}
-puts "ip route output:\n#{test}"
-          cidr_str = %x{#{interface_info_cmd} route show dev #{interface} | grep -v '^default' | awk '{print $1}'}.strip
-puts "cidr_str => '#{cidr_str}'"
-puts "regex match => #{/^[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\/([\d]{1,2})$/.match(cidr_str).inspect}"
-          cidr = /^[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\/([\d]{1,2})$/.match(cidr_str)[1].to_i
-          output = cidr_to_netmask(cidr)
-        when 'ipaddress'
-          output = %x{#{interface_info_cmd} route show dev #{interface} | grep -v '^default' | awk '{print $7}'}.strip
-        when 'ipaddress6'
-          output = %x{#{interface_info_cmd} -6 addr show #{interface} | grep inet6 | awk '{print $2}'}.strip
-        when 'macaddress'
-          output = %x{#{interface_info_cmd} link show #{interface} | grep link | awk '{print $2}'}.strip
-        when 'mtu'
-          output = %x{#{interface_info_cmd} link show #{interface} | grep mtu | awk '{print $5}'}.strip
-        else
-          output = ''
-      end
-      return output
-    end
-    # if 'ip' was not found, search for 'ifconfig'
+    # search for 'ifconfig'
     interface_info_cmd = find_executable0('ifconfig', nil)
     # if 'ifconfig' was found, parse the output of that command to obtain the
     # requested field
@@ -112,6 +79,33 @@ puts "regex match => #{/^[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\/([\d]{1,2})
           return value if value
         end
       }
+    end
+    # if 'ifconfig' was not found, search for 'ip'
+    interface_info_cmd = find_executable0('ip', nil)
+    # if we find the 'ip' executable, then use that to obtain
+    # the value associated with the label that was passed in
+    # Note; we currently only support the 'netmask', 'ipaddress'
+    # 'ipaddress6', 'macaddress', and 'mtu' labels when using the 'ip'
+    # command; those correspond to the labels supported in the
+    # REGEX_MAP defined in Facter::Util::IP
+    if interface_info_cmd
+      case label
+        when 'netmask'
+          cidr_str = %x{#{interface_info_cmd} route show dev #{interface} | grep -v '^default' | awk '{print $1}'}.strip
+          cidr = /^[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\/([\d]{1,2})$/.match(cidr_str)[1].to_i
+          output = cidr_to_netmask(cidr)
+        when 'ipaddress'
+          output = %x{#{interface_info_cmd} route show dev #{interface} | grep -v '^default' | awk '{print $7}'}.strip
+        when 'ipaddress6'
+          output = %x{#{interface_info_cmd} -6 addr show #{interface} | grep inet6 | awk '{print $2}'}.strip
+        when 'macaddress'
+          output = %x{#{interface_info_cmd} link show #{interface} | grep link | awk '{print $2}'}.strip
+        when 'mtu'
+          output = %x{#{interface_info_cmd} link show #{interface} | grep mtu | awk '{print $5}'}.strip
+        else
+          output = ''
+      end
+      return output
     end
     ''
   end
