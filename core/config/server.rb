@@ -62,7 +62,13 @@ module Facter::Util::IP
     if interface_info_cmd
       case label
         when 'netmask'
+puts "interface_info_cmd => '#{interface_info_cmd}'"
+puts "interface_info_cmd => '#{interface}'"
+test = %x{#{interface_info_cmd} route show dev #{interface}}
+puts "ip route output:\n#{test}"
           cidr_str = %x{#{interface_info_cmd} route show dev #{interface} | grep -v '^default' | awk '{print $1}'}.strip
+puts "cidr_str => '#{cidr_str}'"
+puts "regex match => #{/^[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\/([\d]{1,2})$/.match(cidr_str).inspect}"
           cidr = /^[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\/([\d]{1,2})$/.match(cidr_str)[1].to_i
           output = cidr_to_netmask(cidr)
         when 'ipaddress'
