@@ -14,7 +14,10 @@ wget <%= api_svc_uri %>/policy/callback/<%= @policy_uuid %>/kickstart/end
 
 
 %firstboot --interpreter=python
+from pyVim import connect
+from pyVmomi import vim, vmodl
 from subprocess import Popen, PIPE
+import atexit
 import syslog
 import sys
 import re
@@ -105,6 +108,22 @@ def rename_datastore():
         syslog.syslog("%s ERROR %s in send_node_ip_callback()" % (init_syslog_key, e.message))
         sys.exit(1)
 
+
+
+def wait_for_sdk(hostname, username, password):
+    for x in range(0, 5):
+        try:
+            service_instance = connect.SmartConnect(host=hostname,
+                                                user=username,
+                                                pwd=password)
+
+            connect.Disconnect(service_instance)
+        except Exception as ex:
+            syslog.syslog("%s - %s - SDK unavailable, sleeping..." % init_syslog_key, ex)
+            time.sleep(10)
+
+
+wait_for_sdk("127.0.0.1", "root", "<%= @root_password %>" )
 
 syslog.syslog("%s Enabling and starting SSH" % init_syslog_key)
 execute_vimcmd_command("hostsvc/enable_ssh")
