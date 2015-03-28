@@ -153,6 +153,7 @@ module ProjectHanlon
       attr_accessor :persist_password
       attr_accessor :persist_timeout
       attr_accessor :persist_dbname
+      attr_accessor :persist_path
 
       attr_accessor :ipmi_username
       attr_accessor :ipmi_password
@@ -204,6 +205,7 @@ module ProjectHanlon
         #default_websvc_root = "#{base_path}/#{api_version}"
         default_base_path = "/hanlon/api"
         default_image_path  = "#{$hanlon_root}/image"
+        default_persist_path  = "#{$hanlon_root}/data"
         defaults = {
           'hanlon_server'            => get_an_ip,
           'hanlon_subnets'           => get_initial_hanlon_subnets,
@@ -214,6 +216,7 @@ module ProjectHanlon
           'persist_password'         => '',
           'persist_timeout'          => 10,
           'persist_dbname'           => "project_hanlon",
+          'persist_path'             => default_persist_path,
 
           'ipmi_username'            => '',
           'ipmi_password'            => '',
