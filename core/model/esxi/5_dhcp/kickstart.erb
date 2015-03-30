@@ -1,0 +1,270 @@
+# Thanks to William Lam for being the guru
+accepteula
+clearpart --firstdisk --overwritevmfs
+install --firstdisk --overwritevmfs
+network --bootproto=dhcp --device=vmnic0
+rootpw <%= @root_password %>
+reboot
+
+# %include /tmp/networkconfig
+%pre --interpreter=busybox
+
+#Send callback to hanlon that the kickstart is complete
+wget <%= api_svc_uri %>/policy/callback/<%= @policy_uuid %>/kickstart/end
+
+
+%firstboot --interpreter=python
+from pyVim import connect
+from pyVmomi import vim, vmodl
+from subprocess import Popen, PIPE
+import atexit
+import syslog
+import sys
+import re
+import socket
+import traceback
+import urllib2
+import time
+
+init_syslog_key = "HANLON-KS"
+
+
+'''
+Executes process using the shell, waits for the command to exit and
+returns returns output (string), err (string), return_code (int)
+'''
+
+
+def execute_process(cmd_line):
+    try:
+        process = Popen(cmd_line, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
+        output, err = process.communicate()
+        return_code = process.returncode
+        return output, err, return_code
+    except Exception as e:
+        syslog.syslog("Exception %s in execute_process()" % str(e))
+        sys.exit(1)
+
+
+def execute_esxcli_command(esxcli_args):
+    cmd_line = "esxcli %s" % esxcli_args
+    try:
+        output, err, return_code = execute_process(cmd_line)
+        if return_code != 0:
+            syslog.syslog("%s ERROR %s in esxcli %s" % (init_syslog_key, err, esxcli_args))
+            sys.exit(1)
+        else:
+            return output
+    except Exception as e:
+        syslog.syslog("%s ERROR %s in esxcli %s" % (init_syslog_key, e.message, esxcli_args))
+        sys.exit(1)
+
+
+def execute_vimcmd_command(vimcmd_args):
+    cmd_line = "vim-cmd %s" % vimcmd_args
+    try:
+        output, err, return_code = execute_process(cmd_line)
+        if return_code != 0:
+            syslog.syslog("%s ERROR %s in vim-cmd %s" % (init_syslog_key, err, vimcmd_args))
+            sys.exit(1)
+        else:
+            return output
+    except Exception as e:
+        syslog.syslog("%s ERROR %s in vim-cmd %s" % (init_syslog_key, e.message, vimcmd_args))
+        sys.exit(1)
+
+
+def send_node_ip_callback():
+    try:
+        output = execute_esxcli_command("--formatter keyvalue network ip interface ipv4 get -i vmk0")
+        match = re.findall("IPv4Interface.IPv4Address.string=(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", output)
+        if len(match) != 0:
+            callback_url = "<%= callback_url("postinstall", "send_ips") %>/%s" % match[0]
+            urllib2.urlopen(callback_url).read()
+    except Exception as e:
+        syslog.syslog("%s ERROR %s in send_node_ip_callback()" % (init_syslog_key, e.message))
+        sys.exit(1)
+
+
+def send_postinstall_end():
+    try:
+        callback_url = "<%= callback_url("postinstall", "end") %>"
+        urllib2.urlopen(callback_url).read()
+    except Exception as e:
+        syslog.syslog("%s ERROR %s in send_postinstall_end()" % (init_syslog_key, e.message))
+        sys.exit(1)
+
+
+def rename_datastore():
+    try:
+        output = execute_esxcli_command("--formatter keyvalue storage filesystem list")
+        match = re.findall("FilesystemVolume.VolumeName.string=datastore1", output)
+        if len(match) != 0:
+            syslog.syslog("%s Renaming Datastore" % init_syslog_key)
+            hostname = socket.gethostname().split(".")[0]
+            execute_vimcmd_command("hostsvc/datastore/rename datastore1 %s-local-storage-1" % hostname)
+
+    except Exception as e:
+        syslog.syslog("%s ERROR %s in send_node_ip_callback()" % (init_syslog_key, e.message))
+        sys.exit(1)
+
+
+
+def wait_for_sdk(hostname, username, password):
+    for x in range(0, 5):
+        try:
+            service_instance = connect.SmartConnect(host=hostname,
+                                                user=username,
+                                                pwd=password)
+
+            connect.Disconnect(service_instance)
+        except Exception as ex:
+            syslog.syslog("%s - %s - SDK unavailable, sleeping..." % (init_syslog_key, ex))
+            time.sleep(10)
+
+
+wait_for_sdk("127.0.0.1", "root", "<%= @root_password %>" )
+
+syslog.syslog("%s Enabling and starting SSH" % init_syslog_key)
+execute_vimcmd_command("hostsvc/enable_ssh")
+execute_vimcmd_command("hostsvc/start_ssh")
+
+syslog.syslog("%s Enabling and Starting ESXi Shell" % init_syslog_key)
+execute_vimcmd_command("hostsvc/enable_esx_shell")
+execute_vimcmd_command("hostsvc/start_esx_shell")
+
+rename_datastore()
+
+syslog.syslog("%s Configuring License" % init_syslog_key)
+execute_vimcmd_command("vimsvc/license --set <%= @esx_license %>")
+
+syslog.syslog("%s Configuring firewall" % init_syslog_key)
+firewall_services = 'syslog', 'sshClient', 'ntpClient', 'updateManager', 'httpClient'
+for fwsvc in firewall_services:
+    execute_esxcli_command("network firewall ruleset set --ruleset-id %s --enabled yes" % fwsvc)
+
+syslog.syslog("%s Backing up ESXi configuration persisting changes" % init_syslog_key)
+execute_process("/sbin/auto-backup.sh")
+
+syslog.syslog("%s Temporarily disabling the firewall" % init_syslog_key)
+execute_esxcli_command("network firewall set --enabled no")
+
+#Sleeping, we have seen a race condition here.
+time.sleep(10)
+syslog.syslog("%s Sending callback for postinstall send_ip" % init_syslog_key)
+send_node_ip_callback()
+
+syslog.syslog("%s Sending callback for postinstall end" % init_syslog_key)
+send_postinstall_end()
+
+syslog.syslog("%s Re-enabling the firewall" % init_syslog_key)
+execute_esxcli_command("network firewall set --enabled yes")
+
+
+%firstboot --interpreter=python
+
+from subprocess import Popen, PIPE
+import syslog
+import sys
+import re
+import traceback
+import urllib2
+
+
+vib_syslog_key = "VIB-KS"
+vsan_syslog_key = "VSAN-KS"
+
+'''
+If we receive something other than zip or vib this will be the exception we
+raise.  Don't really need to modify it just inheriting the base Exception class
+'''
+
+
+class IncorrectFileType(Exception):
+    pass
+
+
+'''
+Executes process using the shell, waits for the command to exit and
+returns returns output (string), err (string), return_code (int)
+'''
+
+
+def execute_process(cmd_line):
+    try:
+        process = Popen(cmd_line, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
+        output, err = process.communicate()
+        return_code = process.returncode
+        return output, err, return_code
+    except Exception as e:
+        syslog.syslog("Exception %s in execute_process()" % str(e))
+        sys.exit(1)
+
+
+'''
+Check to make sure that we have a scratch partition.
+Parse result of vim-cmd, which will provide path of scratch
+Download zip package
+return empty string or path of local zip
+'''
+
+
+def download_zip_package(url):
+    scratch = "/scratch/downloads"
+    split_url = url.split('/')
+    file_name = split_url[len(split_url)-1]
+    filename_with_path = "%s/%s" % (scratch, file_name)
+    cmd_line = "wget -q -O %s %s" % (filename_with_path, url)
+    syslog.syslog("%s Executing %s" % (vib_syslog_key, cmd_line))
+    output, err, return_code = execute_process(cmd_line)
+    return filename_with_path, return_code
+
+
+'''
+Iterates over vibs with the corresponding command line to install VIB or ZIP packagess
+
+NOTES: I have removed exceptions from this method purposely.  It could be a single VIB or ZIP that fails to
+install but the others may complete.
+'''
+
+
+def do_software_vib_install(url, force):
+
+    return_code = 0
+
+    try:
+        if url.endswith("zip"):
+            filename_with_path, return_code = download_zip_package(url)
+            cmd_line = "esxcli software vib install %s -d %s" % (("-f" if force else ""), filename_with_path)
+        elif url.endswith("vib"):
+            cmd_line = "esxcli software vib install %s -v %s" % (("-f" if force else ""), url)
+        else:
+            raise IncorrectFileType()
+
+        if return_code == 0:
+            syslog.syslog("%s Executing %s" % (vib_syslog_key, cmd_line))
+            output, err, return_code = execute_process(cmd_line)
+            if return_code != 0:
+                syslog.syslog("%s ERROR %s in do_software_vib_install() %s" % (vib_syslog_key, output, err))
+        else:
+            syslog.syslog("%s ERROR %s in do_software_vib_install()" % (vib_syslog_key, url))
+    except:
+        syslog.syslog("%s ERROR %s in do_software_vib_install()" % (vib_syslog_key, url))
+
+
+def install_esxi_packages(url, force):
+
+    try:
+        do_software_vib_install(url, force)
+    except IncorrectFileType:
+        print "Incorrect file type for adding package to ESXi"
+        sys.exit(1)
+    except:
+        print traceback.format_exc()
+        sys.exit(1)
+
+
+
+<% for @pkg in @packages %>
+install_esxi_packages("<%= @pkg['url'] %>", <%= @pkg['force'] ? "True" : "False" %>)
+<% end %>
