@@ -2,7 +2,7 @@
 #
 # VERSION 2.2.0
 
-FROM ruby:2.2
+FROM ruby:2.2-wheezy
 MAINTAINER Joseph Callen <jcpowermac@gmail.com>
 
 # Install the required dependencies
@@ -17,7 +17,8 @@ RUN apt-get update -y \
 	&& ./configure --without-ntfs-3g --prefix=/usr \
 	&& make -j"$(nproc)" \
 	&& make install \
-	&& apt-get purge -y --auto-remove gettext git build-essential \
+	&& apt-get purge -y --auto-remove \
+	gettext \
 	&& rm -Rf /usr/src/wimlib-code \
 	&& apt-get -y autoremove \
     	&& apt-get -y clean \
