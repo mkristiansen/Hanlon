@@ -35,7 +35,7 @@ if [[ "$1" == "start"  ]] ; then
   sudo rm -f $HANLON_SOURCE_PATH/cli/config/hanlon_client.conf
 
   echo "Starting Hanlon Docker containers"
-  sudo docker run -d -v $HANLON_DATA_PATH:/data/db --name hanlon-mongodb dockerfile/mongodb mongod --smallfiles
+  sudo docker run -d -v $HANLON_DATA_PATH:/data/db --name hanlon-mongodb mongo mongod --smallfiles
   sudo docker run -d --privileged -p 8026:8026 \
                   -e DOCKER_HOST=$DOCKER_HOST \
                   -e HANLON_SUBNETS=$HANLON_SUBNETS \
