@@ -1,6 +1,6 @@
 # Hanlon server
 #
-# VERSION 2.2.0
+# VERSION 2.3.0
 
 FROM ruby:2.2-wheezy
 MAINTAINER Joseph Callen <jcpowermac@gmail.com>
