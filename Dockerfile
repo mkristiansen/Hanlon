@@ -2,27 +2,34 @@
 #
 # VERSION 2.2.0
 
-FROM ubuntu:latest
+FROM ruby:2.2-wheezy
 MAINTAINER Joseph Callen <jcpowermac@gmail.com>
 
 # Install the required dependencies
-RUN apt-get -y update \
-    && apt-get -y install ruby1.9.3 git build-essential libssl0.9.8 libssl-dev p7zip-full software-properties-common fuseiso \
-    && add-apt-repository -y ppa:nilarimogard/webupd8 \
-    && apt-get -y update \
-    && apt-get -y install wimtools \
-    && apt-get autoremove \
-    && apt-get clean \
-    && rm -rf /tmp/* /var/tmp/* /var/lib/apt/lists/*
+RUN apt-get update -y \
+	&& apt-get install -y libxml2 gettext libfuse-dev libattr1-dev git build-essential libssl-dev p7zip-full fuseiso \
+	&& mkdir -p /usr/src/wimlib-code \
+	&& mkdir -p /home/hanlon \
+	&& git clone git://git.code.sf.net/p/wimlib/code /usr/src/wimlib-code \
+	&& git clone https://github.com/csc/Hanlon.git /home/hanlon \
+	&& cd /usr/src/wimlib-code \
+	&& ./bootstrap \
+	&& ./configure --without-ntfs-3g --prefix=/usr \
+	&& make -j"$(nproc)" \
+	&& make install \
+	&& apt-get purge -y --auto-remove \
+	gettext \
+	&& rm -Rf /usr/src/wimlib-code \
+	&& apt-get -y autoremove \
+    	&& apt-get -y clean \
+    	&& rm -rf /tmp/* /var/tmp/* /var/lib/apt/lists/*
 
 # We don't need gem docs
 RUN echo "install: --no-rdoc --no-ri" > /etc/gemrc
 
-RUN gem install bundle
-RUN mkdir /home/hanlon 
-RUN git clone https://github.com/csc/Hanlon.git /home/hanlon
-WORKDIR /home/hanlon
-RUN bundle install --system
+RUN gem install bundle \
+	&& cd /home/hanlon \
+	&& bundle install --system
 
 # Hanlon by default runs at TCP 8026
 EXPOSE 8026
