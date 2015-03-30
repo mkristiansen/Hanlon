@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = 'hanlon'
-  s.version     = '2.2.0'
+  s.version     = '2.3.0'
   s.date        = '2015-03-05'
   s.summary     = 'Project Hanlon'
   s.description = 'Next-generation automation software for bare-metal and virtual server provisioning'
