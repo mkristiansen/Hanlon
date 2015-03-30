@@ -1,5 +1,7 @@
 source 'http://rubygems.org'
 
+ruby '2.2.1'
+
 gem 'uuid'
 gem 'base62'
 gem 'colored'
