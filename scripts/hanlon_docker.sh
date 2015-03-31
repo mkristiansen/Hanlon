@@ -35,14 +35,14 @@ if [[ "$1" == "start"  ]] ; then
   sudo rm -f $HANLON_SOURCE_PATH/cli/config/hanlon_client.conf
 
   echo "Starting Hanlon Docker containers"
-  sudo docker run -d -v $HANLON_DATA_PATH:/data/db --name hanlon-mongodb mongo mongod --smallfiles
+  sudo docker run -d -v $HANLON_DATA_PATH:/data/db --name hanlon-mongo mongo mongod --smallfiles
   sudo docker run -d --privileged -p 8026:8026 \
                   -e DOCKER_HOST=$DOCKER_HOST \
                   -e HANLON_SUBNETS=$HANLON_SUBNETS \
                   -e HANLON_STATIC_PATH=$HANLON_STATIC_PATH \
                   -v $HANLON_IMAGE_PATH:/home/hanlon/image \
                   -v $HANLON_SOURCE_PATH:/home/hanlon \
-                  --name hanlon-server --link hanlon-mongodb:mongo cscdock/hanlon
+                  --name hanlon-server --link hanlon-mongo:mongo cscdock/hanlon
 
   while true; do
     echo "Waiting for Hanlon Server container to start"
@@ -76,7 +76,7 @@ if [[ "$1" == "restart"  ]] ; then
                   -e HANLON_STATIC_PATH=$HANLON_STATIC_PATH \
                   -v $HANLON_IMAGE_PATH:/home/hanlon/image \
                   -v $HANLON_SOURCE_PATH:/home/hanlon \
-                  --name hanlon-server --link hanlon-mongodb:mongo cscdock/hanlon
+                  --name hanlon-server --link hanlon-mongo:mongo cscdock/hanlon
 
 fi
 
@@ -84,5 +84,5 @@ if [[ "$1" == "pull" ]] ; then
   sudo docker pull cscdock/hanlon
   sudo docker pull cscdock/hanlon-client
   sudo docker pull cscdock/atftpd
-  sudo docker pull dockerfile/mongodb
+  sudo docker pull mongo
 fi
