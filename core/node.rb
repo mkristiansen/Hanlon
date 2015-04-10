@@ -60,6 +60,8 @@ class ProjectHanlon::Node < ProjectHanlon::Object
     time_diff = Time.now.to_i - @timestamp.to_i
     status = "-"
     case @status
+      when "rebind"
+        status = "R"
       when "bound"
         status = "B"
       when "inactive"

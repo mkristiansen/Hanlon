@@ -315,8 +315,8 @@ class ProjectHanlon::Slice < ProjectHanlon::Object
 
   # used by the slices to print out detailed usage for individual commands
   def print_command_help(command, option_items, optparse_options = { })
-    unless optparse_options[:banner]
-      banner = ( option_items.select { |elem| elem[:uuid_is] == "required" }.length > 0 ?
+    unless optparse_options[:banner] && !optparse_options[:banner].empty?
+      optparse_options[:banner] = ( option_items.select { |elem| elem[:uuid_is] == "required" }.length > 0 ?
           "hanlon #{slice_name} #{command} (UUID) (options...)" :
           "hanlon #{slice_name} #{command} (options...)")
     end
