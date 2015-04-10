@@ -66,9 +66,17 @@ module ProjectHanlon
         # then add a slightly different version of this line back in; one that incorporates
         # the other flags we might pass in as part of a "get_all_nodes" command
         commands[:get][/^(?!^(all|\-\-hw_id|\-i|\-\-bmc|\-f|\-\-field|\-b|\-\-username|\-u|\-\-password|\-p|\-\-help|\-h|\{\}|\{.*\}|nil)$)\S+$/] = "get_node_by_uuid"
-        # and add in a couple of lines to that handle those flags properly
+        #  add in a couple of lines to that handle those flags properly
         [["-f", "--field"], ["-i", "--hw_id"],["-u", "--username"],["-p", "--password"],["-b", "--bmc"]].each { |val|
           commands[:get][val] = "get_all_nodes"
+        }
+        # and add a handler for the 'rebind' commands
+        commands[:rebind] = {
+            ["--help", "-h"]                => "node_help",
+            /^(?!^(all|\-\-help|\-h)$)\S+$/ => {
+                :else                           => "rebind_node",
+                :default                        => "rebind_node"
+            }
         }
         commands
       end
@@ -168,6 +176,24 @@ module ProjectHanlon
                   :uuid_is     => 'required',
                   :required    => false
                 }
+            ],
+            :rebind => [
+                { :name        => :hw_id,
+                  :default     => nil,
+                  :short_form  => '-i',
+                  :long_form   => '--hw_id HW_ID',
+                  :description => 'Hardware ID of node to rebind (optional)',
+                  :uuid_is     => 'required',
+                  :required    => false
+                },
+                { :name        => :cancel,
+                  :default     => nil,
+                  :short_form  => '-c',
+                  :long_form   => '--cancel',
+                  :description => 'Cancel previous rebinding request',
+                  :uuid_is     => 'required',
+                  :required    => false
+                }
             ]
         }.freeze
       end
@@ -178,7 +204,12 @@ module ProjectHanlon
           begin
             # load the option items for this command (if they exist) and print them
             option_items = command_option_data(command)
-            print_command_help(command, option_items)
+            # need to handle the usage for the 'rebind' command a bit differently; the
+            # UUID can be included or the Hardware ID can be included, but not both
+            # (so the UUID is optional, but required if the Hardware ID is not included)
+            optparse_options = { }
+            optparse_options[:banner] = "hanlon node #{command} [UUID] (options...)" if command == 'rebind'
+            print_command_help(command, option_items, optparse_options)
             return
           rescue
           end
@@ -191,14 +222,16 @@ module ProjectHanlon
       def get_node_help
         return ["Node Slice: used to view the current list of nodes (or node details)".red,
                 "Node Commands:".yellow,
-                "\thanlon node [get] [all] [--hw_id,-i HW_ID (options...)] " + "Display list of nodes".yellow,
-                "\thanlon node [get] (UUID)                                " + "Display details for a node".yellow,
-                "\thanlon node [get] (UUID) [--field,-f FIELD]             " + "Display node's field values".yellow,
+                "\thanlon node [get] [all] [--hw_id,-i HW_ID (options...)]  " + "Display list of nodes".yellow,
+                "\thanlon node [get] (UUID)                                 " + "Display details for a node".yellow,
+                "\thanlon node [get] (UUID) [--field,-f FIELD]              " + "Display node's field values".yellow,
                 "\t    Note; the FIELD value can be either 'attributes' or 'hardware_ids'",
-                "\thanlon node [get] (UUID) [--bmc,-b]                     " + "Display node's power status".yellow,
-                "\thanlon node update (UUID) --bmc,-b (BMC_POWER_CMD)      " + "Run a BMC-related power command".yellow,
-                "\t    Note; the BMC_POWER_CMD can any one of 'on', 'off', 'reset', 'cycle' or 'softShutdown'",
-                "\thanlon node --help                                      " + "Display this screen".yellow].join("\n")
+                "\thanlon node [get] (UUID) [--bmc,-b]                      " + "Display node's power status".yellow,
+                "\thanlon node update (UUID) --bmc,-b (BMC_POWER_CMD)       " + "Run a BMC-related power command".yellow,
+                "\t    Note; the BMC_POWER_CMD must be 'on', 'off', 'reset', 'cycle' or 'softShutdown'",
+                "\thanlon node rebind (UUID) [-c]                           " + "Set/cancel node rebinding on next boot".yellow,
+                "\thanlon node rebind --hw_id,i (HW_ID) [-c]                " + "Set/cancel node rebinding on next boot".yellow,
+                "\thanlon node --help                                       " + "Display this screen".yellow].join("\n")
 
       end
 
@@ -347,10 +380,51 @@ module ProjectHanlon
         # parse and validate the options that were passed in as part of this
         # subcommand (this method will return a UUID value, if present, and the
         # options map constructed from the @commmand_array)
-        node_uuid, options = parse_and_validate_options(option_items, :require_all, :banner => "hanlon model update UUID (options...)")
+        node_uuid, options = parse_and_validate_options(option_items, :require_all, :banner => "hanlon node update UUID (options...)")
         includes_uuid = true if node_uuid
         raise ProjectHanlon::Error::Slice::InputError, "Usage Error: must specify a node UUID to update" unless includes_uuid
         update_power_state(@uri_string, node_uuid, options)
+      end
+
+      def make_rebind_request(uri_string, node_uuid, options)
+        # extract the parameters we need from the input options; first
+        # the string indicating if we should cancel or set a rebinding
+        # request
+        cancel_bind = options[:cancel]
+        hw_id = options[:hw_id]
+        # construct our initial uri_string using the input node_uuid (or not, if a hw_id was specified
+        # instead of a node_uuid)
+        hw_id ? uri_string = "#{uri_string}/rebind" : uri_string = "#{uri_string}/#{node_uuid}/rebind"
+        # if a power command was passed in, then process it and return the result
+        uri = URI.parse(uri_string)
+        body_hash = {
+            "action" => (cancel_bind ? 'cancel' : 'set')
+        }
+        body_hash["hw_id"] = hw_id if hw_id && !hw_id.empty?
+        json_data = body_hash.to_json
+        result = hnl_http_post_json_data(uri, json_data)
+        print_object_array([result], "Node Rebind Result:", :style => :table)
+      end
+
+      def rebind_node
+        @command = :rebind_node
+        includes_uuid = false
+        # load the appropriate option items for the subcommand we are handling
+        option_items = command_option_data(:rebind)
+        # parse and validate the options that were passed in as part of this
+        # subcommand (this method will return a UUID value, if present, and the
+        # options map constructed from the @commmand_array)
+        node_uuid, options = parse_and_validate_options(option_items, :require_all, :banner => "hanlon node rebind [UUID] (options...)")
+        if /^\-\-hw_id|\-i$/.match(node_uuid)
+          options[:hw_id] = @command_array[0]
+          node_uuid = nil
+        elsif /^\-\-cancel|\-c$/.match(node_uuid)
+          options[:cancel] = true
+          node_uuid = nil
+        end
+        raise ProjectHanlon::Error::Slice::InputError, "Usage Error: must specify the UUID or the Hardware ID" unless node_uuid || options[:hw_id]
+        raise ProjectHanlon::Error::Slice::InputError, "Usage Error: defined both the UUID and the Hardware ID" if node_uuid && options[:hw_id]
+        make_rebind_request(@uri_string, node_uuid, options)
       end
 
     end

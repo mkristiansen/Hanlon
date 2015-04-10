@@ -128,6 +128,27 @@ module Hanlon
             slice_success_response(SLICE_REF, :update_node_powerstatus, {'UUID' => node.uuid, 'BMC IP' => ipmi_ip_address, 'Status' => power_command}, :success_type => :generic)
           end
 
+          # used to set and cancel rebinding actions associated with a particular node
+          def set_rebinding_action(node, action)
+            # check the value of the action, throw an error if it's unrecognized
+            unless ['set','cancel'].include?(action)
+              raise ProjectHanlon::Error::Slice::CommandFailed, "Unrecognized rebind action [#{action}]; valid values are 'set' or 'cancel'"
+            end
+            # check the value of the action, throw an error if the
+            # action type is unrecognized
+            unless ['set','cancel'].include?(action)
+              raise ProjectHanlon::Error::Slice::CommandFailed, "Unrecognized action [#{type}]; valid values are 'set' or 'cancel'"
+            end
+            # if we get this far, then set a rebinding request for the specified node (or cancel
+            # the rebinding request, if any, associated with the specified node)
+            if action == 'set'
+              response = ProjectHanlon::Engine.instance.add_rebinding_request(node)
+            else
+              response = ProjectHanlon::Engine.instance.cancel_rebinding_request(node)
+            end
+            slice_success_response(SLICE_REF, :cancel_node_rebinding, {'UUID' => response.uuid, 'Node UUID' => node.uuid, 'Action' => action}, :success_type => :generic)
+          end
+
         end
 
         resource :node do
@@ -177,10 +198,10 @@ module Hanlon
             #   parameters:
             #     required:
             #       :hw_id        | String   | The Hardware ID (SMBIOS UUID) of the node. |
-            #       power_command | String   | The BMC power command to execute.    |         | Default: unavailable
+            #       power_command | String   | The BMC power command to execute.          |         | Default: unavailable
             #     optional:
-            #       ipmi_username | String   | The username used to access the BMC. |         | Default: unavailable
-            #       ipmi_password | String   | The password used to access the BMC. |         | Default: unavailable
+            #       ipmi_username | String   | The username used to access the BMC.       |         | Default: unavailable
+            #       ipmi_password | String   | The password used to access the BMC.       |         | Default: unavailable
             # (Note; valid values for the 'power_command' are 'on', 'off', 'reset', 'cycle' or 'softShutdown').
             params do
               requires :hw_id, type: String, desc: "The Hardware ID (SMBIOS UUID) of the node"
@@ -198,12 +219,32 @@ module Hanlon
 
           end     # end resource /node/power
 
+          resource :rebind do
+            # POST /node/rebind
+            # Set (or cancel) a rebinding request for the specified node
+            #   parameters:
+            #     required:
+            #       hw_id         | String   | The Hardware ID (SMBIOS UUID) of the node. |
+            #       action        | String   | The rebinding action to set                |         | Default: unavailable
+            # Notes:
+            #        - valid values for the 'action' are 'set' or 'cancel'
+            params do
+              requires :hw_id, type: String, desc: "The Hardware ID (SMBIOS UUID) of the node"
+              requires :action, type: String, desc: "The rebinding action to set"
+            end
+            post do
+              uuid = params[:hw_id]
+              node = ProjectHanlon::Engine.instance.lookup_node_by_hw_id({:uuid => uuid, :mac_id => []})
+              raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Node with Hardware ID: [#{uuid}]" unless node
+              set_rebinding_action(node, params[:action])
+            end     # end POST /node/rebind
+
+          end     # end resource /node/rebind
+
           # the following description hides this endpoint from the swagger-ui-based documentation
           # (since the functionality provided by this endpoint is not intended to be used off of
           # the Hanlon server)
-          desc 'Hide this endpoint', {
-              :hidden => true
-          }
+          desc 'Hide this endpoint', { :hidden => true }
           resource :checkin do
 
             # GET /node/checkin
@@ -267,9 +308,7 @@ module Hanlon
 
           end     # end resource /node/checkin
 
-          desc 'Hide this endpoint', {
-              :hidden => true
-          }
+          desc 'Hide this endpoint', { :hidden => true }
           resource :register do
 
             # POST /node/register
@@ -412,6 +451,29 @@ module Hanlon
               end     # end POST /node/{uuid}/power
 
             end     # end resource /node/:uuid/power
+
+            resource :rebind do
+
+              # POST /node/{uuid}/rebind
+              # Set (or cancel) a rebinding request for the specified node
+              #   parameters:
+              #     required:
+              #       uuid          | String   | The uuid of the specified node.      |         | Default: unavailable
+              #       action        | String   | The rebinding action to set          |         | Default: unavailable
+              # Notes:
+              #        - valid values for the 'action' are 'set' or 'cancel'
+              params do
+                requires :uuid, type: String, desc: "The node's UUID"
+                requires :action, type: String, desc: "The rebinding action to set"
+              end
+              post do
+                node_uuid = params[:uuid]
+                node = SLICE_REF.get_object("node_with_uuid", :node, node_uuid)
+                raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Node with UUID: [#{node_uuid}]" unless node && (node.class != Array || node.length > 0)
+                set_rebinding_action(node, params[:action])
+              end     # end POST /node/{uuid}/rebind
+
+            end     # end resource /node/:uuid/rebind
 
           end     # end resource /node/:uuid
 

@@ -2,6 +2,7 @@
 
 require "singleton"
 require "json"
+require 'rebind_request'
 
 module ProjectHanlon
   class Engine < ProjectHanlon::Object
@@ -110,27 +111,33 @@ module ProjectHanlon
       end
     end
 
+    def check_policy_match(policy, node)
+      if policy.tags.count > 0
+        if check_tags(node.tags, policy) && policy.enabled.to_s == "true" && policy.is_under_maximum?
+          logger.debug "Matching policy (#{policy.label}) for Node #{node.uuid} using tags#{policy.tags.inspect}"
+          # We found a policy that matches
+          return true
+        end
+      else
+        logger.error "Policy (#{policy.label}) has no tags configured"
+      end
+      logger.debug "No matching rules"
+      false
+    end
+
     def mk_eval_vs_policy_rule(node)
       logger.debug "Evaluating policy rules vs Node #{node.uuid}"
       begin
-
         # Loop through each policy checking node's tags to see if that match
         @policies.get.each { |policy|
-          # Make sure there is at least one tag
-          if policy.tags.count > 0
-            if check_tags(node.tags, policy) && policy.enabled.to_s == "true" && policy.is_under_maximum?
-              logger.debug "Matching policy (#{policy.label}) for Node #{node.uuid} using tags#{policy.tags.inspect}"
-              # We found a policy that matches
-              # we call the policy binding and exit loop
-              mk_bind_policy(node, policy)
-              return
-            end
-          else
-            logger.error "Policy (#{policy.label}) has no tags configured"
+          # if we find a matching policy, then bind it to the node (as an
+          # active_model instance) and return, otherwise continue on to the
+          # next policy
+          if check_policy_match(policy, node)
+            mk_bind_policy(node, policy)
+            return
           end
-          logger.debug "No matching rules"
         }
-
       rescue => e
         logger.error e.message
       end
@@ -174,10 +181,25 @@ module ProjectHanlon
       # We attempt to fetch the node object
       node = lookup_node_by_hw_id(options)
 
-      # If the node is in the DB we can check for active model on it
+      # if a node is found in the database, then we need
+      # to check for an outstanding for rebinding request
+      # or a bound active_model
       if node != nil
-        # Node is in DB, lets check for policy
         logger.info "Node identified - uuid: #{node.uuid}"
+
+        # check to see if there is an outstanding "rebinding request"
+        # for that node; if so use the "newly bound" active_model to
+        # return the appropriate iPXE-boot script to the node
+        rebind_model = get_rebinding_request(node)
+        if rebind_model
+          # Call the rebind model boot_call
+          logger.info "Rebinding policy found (#{rebind_model.label}) for Node uuid: #{node.uuid}"
+          boot_response = rebind_model.boot_call(node)
+          return boot_response
+        end
+
+        # Otherwise, check to see if an active model has been bound to
+        # the node
         active_model = find_active_model(node) # commented out until refactor
         # We update the dhcp_mac for the mac address that was booted
         if options[:dhcp_mac]
@@ -185,8 +207,9 @@ module ProjectHanlon
           node.update_self
         end
 
-        #If there is a active model we pass it the node to a common
-        #method call from a boot
+        # If there is a bound active model we use it to retrieve the
+        # appropriate boot response for this node, otherwise boot into
+        # the Microkernel
         if active_model
           # Call the active model boot_call
           logger.info "Active policy found (#{active_model.label}) for Node uuid: #{node.uuid}"
@@ -194,13 +217,13 @@ module ProjectHanlon
           get_data.persist_object(active_model)
           return boot_response
         else
-          #There is not active model so we boot the MK
+          # There is not active model so boot into the MK
           logger.info "No active policy found - uuid: #{node.uuid}"
           default_mk_boot(node.uuid)
         end
       else
 
-        # Node isn't in DB, we boot it into the MK
+        # if the node isn't in the DB, boot it into the MK
         # This is a default behavior
         logger.info "Node unknown - uuid: #{options[:uuid]}, mac_id: #{options[:mac_id]}"
         default_mk_boot("unknown")
@@ -217,6 +240,58 @@ module ProjectHanlon
       end
       # Otherwise we return false indicating we have no policy
       false
+    end
+
+    def find_rebind_request(node)
+      rebind_requests = get_data.fetch_all_objects(:rebind_request)
+      return nil unless rebind_requests
+      rebind_requests.select! { |request| request.node_uuid == node.uuid }
+      return rebind_requests[0] if rebind_requests
+      nil
+    end
+
+    def add_rebinding_request(node)
+      rebind_request = find_rebind_request(node)
+      if rebind_request
+        logger.error "Cannot rebind Node (#{node.uuid}); rebinding request has already been made"
+        raise ProjectHanlon::Error::Slice::CommandFailed, "Cannot rebind Node (#{node.uuid}); rebinding request has already been made"
+      end
+      rebind_request = ProjectHanlon::RebindRequest.new({ '@node_uuid' => node.uuid })
+      get_data.persist_object(rebind_request)
+    end
+
+    def cancel_rebinding_request(node)
+      rebind_request = find_rebind_request(node)
+      unless rebind_request
+        logger.error "Cannot cancel rebinding request Node (#{node.uuid}); rebinding request does not exist"
+        raise ProjectHanlon::Error::Slice::CommandFailed, "Cannot cancel rebinding request Node (#{node.uuid}); rebinding request does not exist"
+      end
+      get_data.delete_object(rebind_request)
+      rebind_request
+    end
+
+    def get_rebinding_request(node)
+      rebind_request = find_rebind_request(node)
+      # if we found a rebind_request, then search for a policy that matches
+      # this node to an "in memory" model; if one is found then return it
+      if rebind_request
+        # Loop through each policy checking node's tags to see if that match
+        @policies.get.each { |policy|
+          if policy.model.class <= ProjectHanlon::ModelTemplate::InMemory
+            # if found a match, then remove the rebinding request and return the
+            # matching policy
+            if check_policy_match(policy, node)
+              get_data.delete_object(rebind_request)
+              return policy
+            end
+          end
+        }
+      end
+      # otherwise, return nil (indicating that either no matching
+      # rebind_request was found or that a rebind_request was found
+      # or that no policy matching this node to an "in memory" model
+      # was found)
+      nil
     end
 
     def default_mk_boot(uuid)
@@ -375,8 +450,8 @@ module ProjectHanlon
     end
 
     def node_status(node)
-      active_model = find_active_model(node)
-      return "bound" if active_model
+      return "rebind" if find_rebind_request(node)
+      return "bound" if find_active_model(node)
       max_active_elapsed_time = ProjectHanlon.config.register_timeout
       time_since_last_checkin = Time.now.to_i - node.timestamp.to_i
       return "inactive" if time_since_last_checkin > max_active_elapsed_time
@@ -410,7 +485,9 @@ module ProjectHanlon
     def remove_expired_nodes(node_expire_timeout)
       node_array = get_data.fetch_all_objects(:node)
       node_array.each { |node|
-        next if node_status(node) == "bound"
+        # skip to the next one if this node is either bound or
+        # set to rebind
+        next if ['bound','rebind'].include(node_status(node))
         elapsed_time = Time.now.to_i - node.timestamp.to_i
         if elapsed_time > node_expire_timeout
           node_uuid = node.uuid
