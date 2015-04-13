@@ -275,7 +275,7 @@ module Hanlon
               # only allow access to this resource from the Hanlon subnet
               unless request_is_from_hanlon_subnet(env['REMOTE_ADDR'])
                 env['api.format'] = :text
-                raise ProjectHanlon::Error::Slice::MethodNotAllowed, "Remote Access Forbidden; access to /image/{component} resource is not allowed from outside of the Hanlon subnet"
+                raise ProjectHanlon::Error::Slice::MethodNotAllowed, "Remote Access Forbidden; access to /image/#{component} resource is not allowed from outside of the Hanlon subnet"
               end
             end
             params do
@@ -315,7 +315,7 @@ module Hanlon
 
                 rescue Exception => e
                   puts "An exception occuring serving image path #{filepath}"
-                  logger.log_exception e
+                  raise ProjectHanlon::Error::Slice::InputError, "Cannot find resource /image/#{component}"
                 end
 
               end
