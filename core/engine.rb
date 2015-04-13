@@ -45,6 +45,7 @@ module ProjectHanlon
 
         mk_image
       else
+        logger.error "Microkernel image does not exist"
         nil
       end
     end
@@ -297,7 +298,9 @@ module ProjectHanlon
     def default_mk_boot(uuid)
       logger.info "Responding with MK Boot - Node: #{uuid}"
       default = ProjectHanlon::PolicyTemplate::BootMK.new({})
-      default.get_boot_script(default_mk)
+      default_mk_ref = default_mk
+      return default.get_error_script("Microkernel image not found") unless default_mk_ref
+      default.get_boot_script(default_mk_ref)
     end
 
     ########
