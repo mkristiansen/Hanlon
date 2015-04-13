@@ -116,7 +116,12 @@ module Hanlon
             is_noop_template = ["boot_local", "discover_only"].include?(template)
             raise ProjectHanlon::Error::Slice::InvalidModelTemplate, "Invalid Model Template [#{template}] " unless model
             raise ProjectHanlon::Error::Slice::InputError, "Cannot add an image to a 'noop' model" if image_uuid && is_noop_template
-            image = model.image_prefix ? SLICE_REF.verify_image(model, image_uuid) : nil if image_uuid
+            # if an image was provided, check the type versus what was expected for the
+            # model being created
+            if image_uuid
+              image = SLICE_REF.get_image(image_uuid)
+              raise ProjectHanlon::Error::Slice::InputError, "Invalid image type (#{image.path_prefix}) found; expecting an image of type '#{model.image_prefix}'" unless model.image_prefix == image.path_prefix
+            end
             raise ProjectHanlon::Error::Slice::InvalidUUID, "Invalid Image UUID [#{image_uuid}] " unless is_noop_template || image
             # use the arguments passed in (above) to create a new model
             raise ProjectHanlon::Error::Slice::MissingArgument, "Must Provide Required Metadata Parameters [req_metadata_params]" unless req_metadata_params
@@ -232,7 +237,12 @@ module Hanlon
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Invalid Model UUID [#{model_uuid}]" unless model && (model.class != Array || model.length > 0)
               model.label = label if label
               raise ProjectHanlon::Error::Slice::InputError, "Cannot add an image to a 'noop' model" if image_uuid && [:boot_local, :discover_only].include?(model.template)
-              image = model.image_prefix ? SLICE_REF.verify_image(model, image_uuid) : nil if image_uuid
+              # if an image was provided, check the type versus what was expected for the
+              # model being updated
+              if image_uuid
+                image = SLICE_REF.get_image(image_uuid)
+                raise ProjectHanlon::Error::Slice::InputError, "Invalid image type (#{image.path_prefix}); expecting an image of type '#{model.image_prefix}'" unless model.image_prefix == image.path_prefix
+              end
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Invalid Image UUID [#{image_uuid}] " unless image || !image_uuid
               model.image_uuid = image.uuid if image
               if req_metadata_params

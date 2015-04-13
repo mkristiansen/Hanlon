@@ -310,14 +310,14 @@ module ProjectHanlon
         puts result
       end
 
-      def verify_image(model, image_uuid)
+      def get_image(image_uuid)
         uri = URI.parse ProjectHanlon.config.hanlon_uri + ProjectHanlon.config.websvc_root + "/image/#{image_uuid}"
         # and get the results of the appropriate RESTful request using that URI
         result = hnl_http_get(uri)
-        # finally, based on the options selected, print the results
+        # finally, return the result (as an image object)
         image = hash_to_obj(result)
         if image && (image.class != Array || image.length > 0)
-          return image if model.image_prefix == image.path_prefix
+          return image
         end
         nil
       end
