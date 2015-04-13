@@ -38,9 +38,17 @@ module ProjectHanlon
         boot_script << "initrd #{image_svc_uri}/#{default_mk.initrd} || goto error\n"
         boot_script << "boot || goto error\n"
         boot_script << "\n\n\n"
-        boot_script << ":error\necho ERROR, will reboot in #{@config.mk_checkin_interval}\nsleep #{@config.mk_checkin_interval}\nreboot\n"
+        boot_script << ":error\necho ERROR, will reboot in #{@config.mk_checkin_interval} seconds\nsleep #{@config.mk_checkin_interval}\nreboot\n"
         boot_script
       end
+
+      def get_error_script(error_message)
+        error_script = ""
+        error_script << "#!ipxe\n"
+        error_script << "echo #{error_message}, will reboot in #{@config.mk_checkin_interval} seconds\nsleep #{@config.mk_checkin_interval}\nreboot\n"
+        error_script
+      end
+
     end
   end
 end
