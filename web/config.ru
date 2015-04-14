@@ -13,13 +13,6 @@ use Rack::Static,
       [:all, {'Cache-Control' => 'public, max-age=86400'}]
     ]
 
-# test to see if starting up as a WAR file or not
-is_warbler = Module.const_defined?(:WARBLER_CONFIG)
-
-if is_warbler
-  run Hanlon::WebService::App.new
-else
-  run Rack::URLMap.new(
-      hanlon_config['base_path'] => Hanlon::WebService::App.new
-  )
-end
+run Rack::URLMap.new(
+    hanlon_config['base_path'] => Hanlon::WebService::App.new
+)

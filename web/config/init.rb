@@ -1,5 +1,3 @@
-WARBLER_CONFIG = {"public.root"=>"/", "rack.env"=>"production"}
-
 if $servlet_context.nil?
   ENV['GEM_HOME'] = File.expand_path('../../WEB-INF', __FILE__)
 
