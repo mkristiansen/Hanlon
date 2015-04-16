@@ -298,6 +298,7 @@ class ProjectHanlon::Slice < ProjectHanlon::Object
     optparse = get_options(options, optparse_options)
     # set the command help text to the string output from optparse
     @command_help_text << optparse.to_s
+    @command_help_text << "\t#{optparse_options[:note]}" if optparse_options[:note]
     # parse our ARGV with the optparse unless options are already set from get_options_web
     optparse.parse!(@command_array) unless option_items.any? { |k| options[k] }
     # validate required options, we use the :require_one logic to check if at least one :required value is present
@@ -322,6 +323,7 @@ class ProjectHanlon::Slice < ProjectHanlon::Object
     end
     optparse_options[:options_items] = option_items
     usage_lines = get_options({}, optparse_options).to_s.split("\n")
+    usage_lines << "\t#{optparse_options[:note]}" if optparse_options[:note]
     if usage_lines
       puts "Usage: #{usage_lines[0]}"
       usage_lines[1..usage_lines.size].each { |line|
@@ -534,6 +536,12 @@ class ProjectHanlon::Slice < ProjectHanlon::Object
     end
 
     object_hash
+  end
+
+  def add_field_to_query_string(uri_string, fieldname, value)
+    # if there's already a query string in this uri_string, then
+    # just append to it, otherwise start a new query string
+    /^[a-z]+:\/\/[^\?]+\?\S+$/.match(uri_string) ? uri_string << "&#{fieldname}=#{value}" : uri_string << "?#{fieldname}=#{value}"
   end
 
   def print_single_item(obj)

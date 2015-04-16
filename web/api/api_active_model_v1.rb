@@ -125,10 +125,12 @@ module Hanlon
           params do
             optional :node_uuid, type: String, desc: "The (Hanlon-assigned) UUID of the bound node."
             optional :hw_id, type: String, desc: "The Hardware ID (SMBIOS UUID) of the bound node."
+            optional :policy, type: String, desc: "The Policy UUID to use as a filter"
           end
           get do
-            node_uuid = params[:node_uuid]
+            node_uuid = params[:node_uuid] if params[:node_uuid]
             hw_id = params[:hw_id].upcase if params[:hw_id]
+            policy_uuid = params[:policy] if params[:policy]
             raise ProjectHanlon::Error::Slice::InvalidCommand, "only one node selection parameter ('hw_id' or 'node_uuid') may be used" if (hw_id && node_uuid)
             # if either a node_uuid or a hw_id was provided, return the details for the active_model bound to the node
             # with that node_id, otherwise just return the list of all active_models
@@ -145,11 +147,23 @@ module Hanlon
               end
               active_model = engine.find_active_model(node)
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Node [#{node_id}] is not bound to an active_model" unless active_model
-              slice_success_object(SLICE_REF, :get_all_active_models, active_model, :success_type => :generic)
-            else
+              return slice_success_object(SLICE_REF, :get_all_active_models, active_model, :success_type => :generic)
+            elsif policy_uuid
+              # first find the policy with that UUID (in case the user only passed in a partial
+              # UUID as an argument)
+              policy = SLICE_REF.get_object("get_policy_by_uuid", :policy, policy_uuid)
+              # otherwise a Policy UUID was supplied, then determine which nodes were bound to
+              # active_models by that policy and use them to define a node selection array
               active_models = SLICE_REF.get_object("active_models", :active)
-              slice_success_object(SLICE_REF, :get_all_active_models, active_models, :success_type => :generic)
+              active_model_selection_array = []
+              active_models.each { |active_model|
+                active_model_selection_array << active_model.uuid if active_model.root_policy == policy.uuid
+              }
             end
+            active_models = SLICE_REF.get_object("active_models", :active)
+            # if a node selection array was defined, use it to filter the list of nodes returned
+            active_models.select! { |active_model| active_model_selection_array.include?(active_model.uuid) } if active_model_selection_array
+            slice_success_object(SLICE_REF, :get_all_active_models, active_models, :success_type => :generic)
           end     # end GET /active_model
 
           # DELETE /active_model

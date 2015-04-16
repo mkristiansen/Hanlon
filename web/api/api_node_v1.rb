@@ -158,15 +158,32 @@ module Hanlon
           desc "Retrieve a list of all node instances"
           params do
             optional :uuid, type: String, desc: "The Hardware ID (SMBIOS UUID) of the node."
+            optional :policy, type: String, desc: "The Policy UUID to use as a filter"
           end
           get do
             uuid = params[:uuid].upcase if params[:uuid]
+            policy_uuid = params[:policy]
+            raise ProjectHanlon::Error::Slice::InputError, "Usage Error: either a Hardware ID or a Policy UUID can be provided as a filter, but not both" if params[:uuid] && params[:policy]
             if uuid
+              # if a Hardware ID was supplied, then return the node with that Hardware ID
               node = ProjectHanlon::Engine.instance.lookup_node_by_hw_id({:uuid => uuid, :mac_id => []})
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Node with Hardware ID: [#{uuid}]" unless node
               return slice_success_object(SLICE_REF, :get_all_nodes, node, :success_type => :generic)
+            elsif policy_uuid
+              # first find the policy with that UUID (in case the user only passed in a partial
+              # UUID as an argument)
+              policy = SLICE_REF.get_object("get_policy_by_uuid", :policy, policy_uuid)
+              # otherwise a Policy UUID was supplied, then determine which nodes were bound to
+              # active_models by that policy and use them to define a node selection array
+              active_models = SLICE_REF.get_object("active_models", :active)
+              node_selection_array = []
+              active_models.each { |active_model|
+                node_selection_array << active_model.node_uuid if active_model.root_policy == policy.uuid
+              }
             end
             nodes = SLICE_REF.get_object("nodes", :node)
+            # if a node selection array was defined, use it to filter the list of nodes returned
+            nodes.select! { |node| node_selection_array.include?(node.uuid) } if node_selection_array
             slice_success_object(SLICE_REF, :get_all_nodes, nodes, :success_type => :generic)
           end       # end GET /node
 
