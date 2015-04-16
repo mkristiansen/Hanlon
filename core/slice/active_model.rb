@@ -92,10 +92,11 @@ module ProjectHanlon
         puts "Active Model Slice: used to view active models or active model logs (and to remove active models).".red
         puts "Active Model Commands:".yellow
         puts "\thanlon active_model [get] [all]                            " + "View all active models".yellow
+        puts "\thanlon active_model [get] [all] --policy,-o POLICY_UUID    " + "View all active models bound by a policy".yellow
+        puts "\thanlon active_model logs                                   " + "Prints an aggregate view of active model logs".yellow
         puts "\thanlon active_model [get] (UUID) [logs]                    " + "View specific active model (log)".yellow
         puts "\thanlon active_model [get] --node_uuid,-n NODE_UUID [logs]  " + "View (log for) active_model bound to node".yellow
         puts "\thanlon active_model [get] --hw_id,-i HW_ID [logs]          " + "View (log for) active_model bound to node".yellow
-        puts "\thanlon active_model logs                                   " + "Prints an aggregate view of active model logs".yellow
         puts "\thanlon active_model remove (UUID)                          " + "Remove specific active model".yellow
         puts "\thanlon active_model remove --node_uuid,-n NODE_UUID        " + "Remove active_model bound to node".yellow
         puts "\thanlon active_model remove --hw_id,-i HW_ID                " + "Remove active_model bound to node".yellow
@@ -109,7 +110,7 @@ module ProjectHanlon
                   :default     => nil,
                   :short_form  => '-o',
                   :long_form   => '--policy POLICY_UUID',
-                  :description => 'Show only nodes bound by this policy instance',
+                  :description => 'Show only active_models bound by this policy instance',
                   :uuid_is     => 'not_allowed',
                   :required    => false
                 }

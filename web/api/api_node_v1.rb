@@ -164,6 +164,7 @@ module Hanlon
             uuid = params[:uuid].upcase if params[:uuid]
             policy_uuid = params[:policy]
             raise ProjectHanlon::Error::Slice::InputError, "Usage Error: either a Hardware ID or a Policy UUID can be provided as a filter, but not both" if params[:uuid] && params[:policy]
+            node_selection_array = []
             if uuid
               # if a Hardware ID was supplied, then return the node with that Hardware ID
               node = ProjectHanlon::Engine.instance.lookup_node_by_hw_id({:uuid => uuid, :mac_id => []})
@@ -183,7 +184,7 @@ module Hanlon
             end
             nodes = SLICE_REF.get_object("nodes", :node)
             # if a node selection array was defined, use it to filter the list of nodes returned
-            nodes.select! { |node| node_selection_array.include?(node.uuid) } if node_selection_array
+            nodes.select! { |node| node_selection_array.include?(node.uuid) } unless node_selection_array.empty?
             slice_success_object(SLICE_REF, :get_all_nodes, nodes, :success_type => :generic)
           end       # end GET /node
 
