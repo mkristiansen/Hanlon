@@ -177,7 +177,6 @@ module Hanlon
               # otherwise a Policy UUID was supplied, then determine which nodes were bound to
               # active_models by that policy and use them to define a node selection array
               active_models = SLICE_REF.get_object("active_models", :active)
-              node_selection_array = []
               active_models.each { |active_model|
                 node_selection_array << active_model.node_uuid if active_model.root_policy == policy.uuid
               }
