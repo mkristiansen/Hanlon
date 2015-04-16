@@ -120,7 +120,11 @@ module Hanlon
 
           # GET /active_model
           # Retrieve list of active_models (or if a 'node_uuid' or 'hw_id' is provided, retrieve the details
-          # for the active_model bound to the specified node instead)
+          # for the active_model bound to the specified node instead; or if a 'policy' is provided, show the
+          # list of active_models created by that policy).
+          #
+          # Note that although the :node_uuid, :hw_id, and :policy are all shown as optional, there can be
+          # only one (or none) of these specified in a valid request to this endpoint
           desc "Retrieve a list of all active_model instances"
           params do
             optional :node_uuid, type: String, desc: "The (Hanlon-assigned) UUID of the bound node."
@@ -131,7 +135,10 @@ module Hanlon
             node_uuid = params[:node_uuid] if params[:node_uuid]
             hw_id = params[:hw_id].upcase if params[:hw_id]
             policy_uuid = params[:policy] if params[:policy]
-            raise ProjectHanlon::Error::Slice::InvalidCommand, "only one node selection parameter ('hw_id' or 'node_uuid') may be used" if (hw_id && node_uuid)
+            # count the number of non-nil optional inputs received; there
+            # should only be one in a valid request
+            num_sel_params = [node_uuid, hw_id, policy_uuid].select { |val| val }.size
+            raise ProjectHanlon::Error::Slice::InvalidCommand, "only one node selection parameter ('policy_uuid', 'hw_id' or 'node_uuid') may be used" if num_sel_params > 1
             # if either a node_uuid or a hw_id was provided, return the details for the active_model bound to the node
             # with that node_id, otherwise just return the list of all active_models
             if hw_id || node_uuid

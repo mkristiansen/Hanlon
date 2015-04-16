@@ -32,6 +32,10 @@ module ProjectHanlon
         # then add a slightly different version of this line back in; one that incorporates
         # the other flags we might pass in as part of a "get_all_nodes" or "get_node_by_uuid" command
         commands[:get][/^(?!^(all|\-\-hw_id|\-i|\-\-policy|\-o|\-\-node_uuid|\-n|\-\-help|\-h|\{\}|\{.*\}|nil)$)\S+$/] = tmp_map
+        # and modify one of those entries to ensure that we get into that method, even if both
+        # a UUID and a :hw_id, a :node_uuid, or both were passed in; will let us handle the resulting
+        # error more cleanly
+        commands[:get][/^(?!^(all|\-\-hw_id|\-i|\-\-policy|\-o|\-\-node_uuid|\-n|\-\-help|\-h|\{\}|\{.*\}|nil)$)\S+$/][:else] = "get_active_model_by_uuid"
         # add in a couple of lines to that handle those flags properly
         commands[:get][["-o", "--policy"]] = "get_all_active_models"
         [["-i", "--hw_id"],["-n", "--node_uuid"]].each { |val|
@@ -43,6 +47,10 @@ module ProjectHanlon
         # then add a slightly different version of this line back in; one that incorporates
         # the other flags we might pass in as part of a "remove_active_model_by_uuid" command
         commands[:remove][/^(?!^(all|\-\-hw_id|\-i|\-\-policy|\-o|\-\-node_uuid|\-n|\-\-help|\-h|\{\}|\{.*\}|nil)$)\S+$/] = tmp_map
+        # and modify one of those entries to ensure that we get into that method, even if both
+        # a UUID and a :hw_id, a :node_uuid, or both were passed in; will let us handle the resulting
+        # error more cleanly
+        commands[:remove][/^(?!^(all|\-\-hw_id|\-i|\-\-policy|\-o|\-\-node_uuid|\-n|\-\-help|\-h|\{\}|\{.*\}|nil)$)\S+$/][:else] = "remove_active_model_by_uuid"
         # and add in a couple of lines that handle these flags properly
         [["-i", "--hw_id"], ["-n", "--node_uuid"]].each { |val|
           commands[:remove][val] = "remove_active_model_by_uuid"
@@ -140,7 +148,7 @@ module ProjectHanlon
                   :description => 'The UUID of the node bound to the active_model to remove',
                   :uuid_is     => 'required',
                   :required    => false
-                }
+                },
             ]
         }.freeze
       end
@@ -194,6 +202,12 @@ module ProjectHanlon
         if last_parsed && /^(\-|\-\-).+$/.match(last_parsed)
           @command_array.unshift(last_parsed)
           @prev_args.pop
+          if @command_array[-1] == "logs"
+            # if here, then the user was actually looking for logs but
+            # the parsing brought us into the wrong method; redirect to
+            # the right one
+            return get_active_model_logs
+          end
         end
         # load the appropriate option items for the subcommand we are handling
         option_items = command_option_data(:get)
@@ -201,13 +215,16 @@ module ProjectHanlon
         # subcommand (this method will return a UUID value, if present, and the
         # options map constructed from the @commmand_array)
         tmp, options = parse_and_validate_options(option_items, :require_all, :banner => "hanlon node [get] [UUID] (options...)",
-                                                  :note => "Note; either the UUID or the HW_ID must be provided (but not both)")
+                                                  :note => "Note; one (and only one) of the active_model UUID, the HW_ID of the bound node,\n\t  or the UUID of the bound node must be provided")
         active_model_uuid = ( tmp && tmp != "get" ? tmp : nil)
-        options.delete(:hw_id) unless options[:hw_id]
-        # throw an error if both a node UUID value and the :hw_id option were specified
-        # (or if neither was specified)
-        raise ProjectHanlon::Error::Slice::InputError, "Usage Error: one (and only one) of the UUID, the UUID of the bound node, or the Hardware ID of the bound node can be used to specify an active_model" if options[:hw_id] && active_model_uuid
-        raise ProjectHanlon::Error::Slice::InputError, "Usage Error: one of the UUID, the UUID of the bound node, or the Hardware ID of the bound node must be specified" unless options[:hw_id] || options[:node_uuid] || active_model_uuid
+        # remove any missing (non-specified) fields from the options available (the :hw_id and :node_uuid
+        # options to this command)
+        hw_id = options[:hw_id]
+        node_uuid = options[:node_uuid]
+        # throw an error if more than one of the active_model_uuid, :hw_id or
+        # :node_uuid parameters were provided in this command
+        num_identifier_fields = [active_model_uuid, node_uuid, hw_id].select { |val| val }.size
+        raise ProjectHanlon::Error::Slice::InputError, "Usage Error: one (and only one) node identifier can be used select an active_model" if num_identifier_fields > 1
         # check for usage errors (the boolean value at the end of this method call is used to
         # indicate whether the choice of options from the option_items hash must be an
         # exclusive choice); will assume that the UUID of the node was provided (or that
@@ -220,8 +237,6 @@ module ProjectHanlon
         uri_string << "/#{active_model_uuid}" if active_model_uuid
         # if either the bound node's UUID or the hardware ID was provided, add them to the
         # query string
-        hw_id = options[:hw_id]
-        node_uuid = options[:node_uuid]
         add_field_to_query_string(uri_string, "node_uuid", node_uuid) if node_uuid && !node_uuid.empty?
         add_field_to_query_string(uri_string, "hw_id", hw_id) if hw_id && !hw_id.empty?
         uri = URI.parse(uri_string)
@@ -236,7 +251,7 @@ module ProjectHanlon
         # if there are still arguments left, then user was looking for the logs for
         # a specific active_model instance (based on the hardware_id or node_uuid
         # of the node that active_model is bound to), to print that
-        if @command_array.size == 2
+        if @command_array.size == 3
           node_sel_flag = @command_array[0]
           hardware_id = @command_array[1] if ['--hw_id','-i'].include?(node_sel_flag)
           node_uuid = @command_array[1] if ['--node_uuid','-n'].include?(node_sel_flag)
@@ -267,7 +282,7 @@ module ProjectHanlon
         # convert the result into an active_model instance, then use that instance to
         # print out the logs for that instance
         active_model_ref = hash_to_obj(result)
-        print_object_array(active_model_ref.print_log, "", :style => :table)
+        print_object_array(active_model_ref.print_log, "Active Model Logs (#{active_model_ref.uuid}):", :style => :table)
       end
 
       def remove_all_active_models
@@ -277,18 +292,46 @@ module ProjectHanlon
 
       def remove_active_model_by_uuid
         @command = :remove_active_model_by_uuid
-        prev_flag = @prev_args.peek(0)
-        hardware_id = @command_array[0] if prev_flag && ['--hw_id','-i'].include?(prev_flag)
-        node_uuid = @command_array[0] if prev_flag && ['--node_uuid','-n'].include?(prev_flag)
-        if hardware_id || node_uuid
-          uri = URI.parse(@uri_string + "?hw_id=#{hardware_id}") if hardware_id
-          uri = URI.parse(@uri_string + "?node_uuid=#{node_uuid}") if node_uuid
-        else
-          # the UUID was the last "previous argument"
-          active_model_uuid = @prev_args.peek(0)
-          # setup the DELETE (to update the remove the indicated active_model) and return the results
-          uri = URI.parse(@uri_string + '/' + active_model_uuid)
+        # check for cases where we read too far into the @command_array; if
+        # the argument at the top of the @prev_args stack starts with a '-'
+        # or a '--', then push it back onto the end of the @command_array
+        # for further parsing
+        last_parsed = @prev_args.peek
+        if last_parsed && /^(\-|\-\-).+$/.match(last_parsed)
+          @command_array.unshift(last_parsed)
+          @prev_args.pop
         end
+        # load the appropriate option items for the subcommand we are handling
+        option_items = command_option_data(:remove)
+        # parse and validate the options that were passed in as part of this
+        # subcommand (this method will return a UUID value, if present, and the
+        # options map constructed from the @commmand_array)
+        tmp, options = parse_and_validate_options(option_items, :require_all, :banner => "hanlon node remove [UUID] (options...)",
+                                                  :note => "Note; one (and only one) of the active_model UUID, the HW_ID of the bound node,\n\t  or the UUID of the bound node must be provided")
+        active_model_uuid = ( tmp && tmp != "remove" ? tmp : nil)
+        # remove any missing (non-specified) fields from the options available (the :hw_id and :node_uuid
+        # options to this command)
+        hw_id = options[:hw_id]
+        node_uuid = options[:node_uuid]
+        # throw an error if more than one of the active_model_uuid, :hw_id or
+        # :node_uuid parameters were provided in this command
+        num_identifier_fields = [active_model_uuid, node_uuid, hw_id].select { |val| val }.size
+        raise ProjectHanlon::Error::Slice::InputError, "Usage Error: one (and only one) node identifier can be used select an active_model" if num_identifier_fields > 1
+        # check for usage errors (the boolean value at the end of this method call is used to
+        # indicate whether the choice of options from the option_items hash must be an
+        # exclusive choice); will assume that the UUID of the node was provided (or that
+        # an equivalent :hw_id option was provided, if both of these parameters are missing
+        # we wouldn't gotten this far), so the third argument is set to true
+        check_option_usage(option_items, options, true, false)
+        # save the @uri_string to a local variable
+        uri_string = @uri_string
+        # if a active_model_uuid was provided, then add it to the uri_string
+        uri_string << "/#{active_model_uuid}" if active_model_uuid
+        # if either the bound node's UUID or the hardware ID was provided, add them to the
+        # query string
+        add_field_to_query_string(uri_string, "node_uuid", node_uuid) if node_uuid && !node_uuid.empty?
+        add_field_to_query_string(uri_string, "hw_id", hw_id) if hw_id && !hw_id.empty?
+        uri = URI.parse(uri_string)
         result = hnl_http_delete(uri)
         puts result
       end
