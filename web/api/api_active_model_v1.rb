@@ -120,18 +120,29 @@ module Hanlon
 
           # GET /active_model
           # Retrieve list of active_models (or if a 'node_uuid' or 'hw_id' is provided, retrieve the details
-          # for the active_model bound to the specified node instead)
+          # for the active_model bound to the specified node instead; or if a 'policy' is provided, show the
+          # list of active_models created by that policy).
+          #
+          # Note that although the :node_uuid, :hw_id, and :policy are all shown as optional, there can be
+          # only one (or none) of these specified in a valid request to this endpoint
           desc "Retrieve a list of all active_model instances"
           params do
             optional :node_uuid, type: String, desc: "The (Hanlon-assigned) UUID of the bound node."
             optional :hw_id, type: String, desc: "The Hardware ID (SMBIOS UUID) of the bound node."
+            optional :policy, type: String, desc: "The Policy UUID to use as a filter"
           end
           get do
-            node_uuid = params[:node_uuid]
+            node_uuid = params[:node_uuid] if params[:node_uuid]
             hw_id = params[:hw_id].upcase if params[:hw_id]
-            raise ProjectHanlon::Error::Slice::InvalidCommand, "only one node selection parameter ('hw_id' or 'node_uuid') may be used" if (hw_id && node_uuid)
+            policy_uuid = params[:policy] if params[:policy]
+            # count the number of non-nil optional inputs received; there
+            # should only be one in a valid request
+            num_sel_params = [node_uuid, hw_id, policy_uuid].select { |val| val }.size
+            raise ProjectHanlon::Error::Slice::InvalidCommand, "only one node selection parameter ('policy_uuid', 'hw_id' or 'node_uuid') may be used" if num_sel_params > 1
             # if either a node_uuid or a hw_id was provided, return the details for the active_model bound to the node
             # with that node_id, otherwise just return the list of all active_models
+            active_models = nil
+            active_model_selection_array = []
             if hw_id || node_uuid
               engine = ProjectHanlon::Engine.instance
               if hw_id
@@ -145,11 +156,22 @@ module Hanlon
               end
               active_model = engine.find_active_model(node)
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Node [#{node_id}] is not bound to an active_model" unless active_model
-              slice_success_object(SLICE_REF, :get_all_active_models, active_model, :success_type => :generic)
-            else
+              return slice_success_object(SLICE_REF, :get_all_active_models, active_model, :success_type => :generic)
+            elsif policy_uuid
+              # first find the policy with that UUID (in case the user only passed in a partial
+              # UUID as an argument)
+              policy = SLICE_REF.get_object("get_policy_by_uuid", :policy, policy_uuid)
+              # otherwise a Policy UUID was supplied, then determine which nodes were bound to
+              # active_models by that policy and use them to define a node selection array
               active_models = SLICE_REF.get_object("active_models", :active)
-              slice_success_object(SLICE_REF, :get_all_active_models, active_models, :success_type => :generic)
+              active_models.each { |active_model|
+                active_model_selection_array << active_model.uuid if active_model.root_policy == policy.uuid
+              }
             end
+            active_models = SLICE_REF.get_object("active_models", :active) unless active_models
+            # if a node selection array was defined, use it to filter the list of nodes returned
+            active_models.select! { |active_model| active_model_selection_array.include?(active_model.uuid) } unless active_model_selection_array.empty?
+            slice_success_object(SLICE_REF, :get_all_active_models, active_models, :success_type => :generic)
           end     # end GET /active_model
 
           # DELETE /active_model
