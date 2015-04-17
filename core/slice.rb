@@ -506,8 +506,13 @@ class ProjectHanlon::Slice < ProjectHanlon::Object
         end
       else
         object_array.each do |obj|
-          print_array << obj.print_items
-          header = obj.print_header
+          if obj.class.instance_method(:print_items).arity == -1
+            print_array << obj.print_items(options[:additional_fields])
+            header = obj.print_header(options[:additional_fields])
+          else
+            print_array << obj.print_items
+            header = obj.print_header
+          end
           line_colors << obj.line_color
           header_color = obj.header_color
         end

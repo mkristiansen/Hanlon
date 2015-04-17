@@ -48,11 +48,19 @@ class ProjectHanlon::Node < ProjectHanlon::Object
     engine.node_status(self)
   end
 
-  def print_header
-    return "UUID", "Last Checkin", "Status", "Tags"
+  def print_header(additional_fields = nil)
+    header_fields = ["UUID", "Last Checkin", "Status", "Tags"]
+    additional_fields.each { |field|
+      if field == 'hardware_id'
+        header_fields << 'Hardware ID'
+      else
+        header_fields << field.split('_').map(&:capitalize).join(' ')
+      end
+    } if additional_fields
+    header_fields
   end
 
-  def print_items
+  def print_items(additional_fields = nil)
     # filter out the hardware ID related tag (using the pattern for an SMBIOS UUID)
     # from the list of tags to display
     temp_tags = @tags.reject { |item| /[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/.match(item) }
@@ -71,11 +79,20 @@ class ProjectHanlon::Node < ProjectHanlon::Object
       else
         status = "U"
     end
-    return @uuid, pretty_time(time_diff), status, "[#{temp_tags.join(",")}]"
+    return_vals = @uuid, pretty_time(time_diff), status, "[#{temp_tags.join(",")}]"
+    additional_fields.each { |field|
+      if field == 'hardware_id'
+        val = "[#{@hw_id.join(",")}]"
+      else
+        val = @attributes_hash[field]
+      end
+      return_vals << (val ? val : 'N/A')
+    } if additional_fields
+    return_vals
   end
 
   def print_item_header
-    return "UUID", "Last Checkin", "Status", "Tags", "Hardware IDs"
+    return "UUID", "Last Checkin", "Status", "Tags", "Hardware ID"
   end
 
   def print_item
@@ -84,7 +101,7 @@ class ProjectHanlon::Node < ProjectHanlon::Object
     temp_tags = @tags.reject { |item| /[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/.match(item) }
     temp_tags = ["n/a"] if temp_tags == [] || temp_tags == nil
     return @uuid, Time.at(@timestamp.to_i).strftime("%m-%d-%y %H:%M:%S"), @status,
-        "[#{temp_tags.join(",")}]", "[#{@hw_id.join(", ")}]"
+        "[#{temp_tags.join(",")}]", "[#{@hw_id.join(",")}]"
   end
 
   def line_color
