@@ -65,9 +65,11 @@ module ProjectHanlon
         commands[:get].delete(/^(?!^(all|\-\-help|\-h|\{\}|\{.*\}|nil)$)\S+$/)
         # then add a slightly different version of this line back in; one that incorporates
         # the other flags we might pass in as part of a "get_all_nodes" or "get_node_by_uuid" command
-        commands[:get][/^(?!^(all|\-\-hw_id|\-i|\-\-policy|\-o|\-\-bmc|\-f|\-\-field|\-b|\-\-username|\-u|\-\-password|\-p|\-\-help|\-h|\{\}|\{.*\}|nil)$)\S+$/] = "get_node_by_uuid"
+        commands[:get][/^(?!^(all|\-\-hw_id|\-i|\-\-policy|\-o|\-\-bmc|\-a|\-\-attribs|\-f|\-\-field|\-b|\-\-username|\-u|\-\-password|\-p|\-\-help|\-h|\{\}|\{.*\}|nil)$)\S+$/] = "get_node_by_uuid"
         #  add in a couple of lines to that handle those flags properly
-        commands[:get][["-o", "--policy"]] = "get_all_nodes"
+        [["-o", "--policy"], ["-a", "--attribs"]].each { |val|
+          commands[:get][val] = "get_all_nodes"
+        }
         [["-f", "--field"],["-i", "--hw_id"],["-u", "--username"],["-p", "--password"],["-b", "--bmc"]].each { |val|
           commands[:get][val] = "get_node_by_uuid"
         }
@@ -92,6 +94,14 @@ module ProjectHanlon
                   :short_form  => '-o',
                   :long_form   => '--policy POLICY_UUID',
                   :description => 'Show only nodes bound by this policy instance',
+                  :uuid_is     => 'not_allowed',
+                  :required    => false
+                },
+                { :name        => :attribs,
+                  :default     => nil,
+                  :short_form  => '-a',
+                  :long_form   => '--attribs ATTRIBS_LIST',
+                  :description => 'Show additional attributes from ATTRIBS_LIST in output',
                   :uuid_is     => 'not_allowed',
                   :required    => false
                 }
@@ -204,7 +214,9 @@ module ProjectHanlon
             # but not both (so the UUID is optional, but required if the Hardware ID is
             # not included)
             optparse_options = { }
+            # add a :banner if getting help for the 'get', 'update', or 'rebind' command
             optparse_options[:banner] = "hanlon node #{command} [UUID] (options...)" if ['get', 'update', 'rebind'].include?(command)
+            # and set an appropriate :note for these same commands
             optparse_options[:note] = "Note; either a UUID or a HW_ID must be provided (but not both)" if ['get', 'update', 'rebind'].include?(command)
             print_command_help(command, option_items, optparse_options)
             return
@@ -221,6 +233,7 @@ module ProjectHanlon
                 "Node Commands:".yellow,
                 "\thanlon node [get] [all]                                        " + "Display list of nodes".yellow,
                 "\thanlon noce [get] [all] --policy,-o POLICY_UUID                " + "Display nodes bound by policy instance".yellow,
+                "\thanlon noce [get] [all] --attribs,-a ATTRIBS_LIST              " + "Display additional attributes in output".yellow,
                 "\thanlon node [get] (UUID)                                       " + "Display details for a node".yellow,
                 "\thanlon node [get] --hw_id,i (HW_ID)                            " + "\t(alt form; by Hardware ID)".yellow,
                 "\thanlon node [get] (UUID) [--field,-f FIELD]                    " + "Display node's field values".yellow,
@@ -264,6 +277,7 @@ module ProjectHanlon
         uri_string = @uri_string
         # add in the policy UUID, if one was provided
         policy_uuid = options[:policy]
+        additional_attribs = options[:attribs].split(',')
         add_field_to_query_string(uri_string, "policy", policy_uuid) if policy_uuid && !policy_uuid.empty?
         # get the nodes from the RESTful API (as an array of objects)
         uri = URI.parse uri_string
@@ -274,7 +288,7 @@ module ProjectHanlon
           result = hash_array_to_obj_array(expand_response_with_uris(result), sort_fieldname)
         end
         # and print the result
-        print_object_array(result, "Discovered Nodes", :style => :table)
+        print_object_array(result, "Discovered Nodes", :style => :table, :additional_fields => additional_attribs)
       end
 
       def get_node_by_uuid
