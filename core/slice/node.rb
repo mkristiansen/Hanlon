@@ -277,7 +277,7 @@ module ProjectHanlon
         uri_string = @uri_string
         # add in the policy UUID, if one was provided
         policy_uuid = options[:policy]
-        additional_attribs = options[:attribs].split(',')
+        additional_attribs = options[:attribs].split(',') if options[:attribs]
         add_field_to_query_string(uri_string, "policy", policy_uuid) if policy_uuid && !policy_uuid.empty?
         # get the nodes from the RESTful API (as an array of objects)
         uri = URI.parse uri_string
