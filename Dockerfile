@@ -2,7 +2,7 @@
 #
 # VERSION 2.3.0
 
-FROM ruby:2.2.2-wheezy
+FROM ruby:2.2.1-wheezy
 MAINTAINER Joseph Callen <jcpowermac@gmail.com>
 
 # Install the required dependencies
