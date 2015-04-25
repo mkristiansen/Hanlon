@@ -25,6 +25,12 @@ module ProjectHanlon
           #require "project_hanlon/persist/mongo_plugin" unless ProjectHanlon::Persist.const_defined?(:MongoPlugin)
           require "persist/mongo_plugin" unless ProjectHanlon::Persist.const_defined?(:MongoPlugin)
           @database = ProjectHanlon::Persist::MongoPlugin.new
+        elsif (config.persist_mode == :cassandra)
+          logger.debug "Using Cassandra plugin"
+          # ToDo::Sankar::Clean junk code
+          #require "project_hanlon/persist/mongo_plugin" unless ProjectHanlon::Persist.const_defined?(:MongoPlugin)
+          require "persist/cassandra_plugin" unless ProjectHanlon::Persist.const_defined?(:CassandraPlugin)
+          @database = ProjectHanlon::Persist::CassandraPlugin.new
         elsif (config.persist_mode == :postgres)
           logger.debug "Using Postgres plugin"
           # ToDo::Sankar::Clean junk code
@@ -77,9 +83,6 @@ module ProjectHanlon
         logger.debug "Connecting to database(#{@config.persist_username}#{@config.persist_host}:#{@config.persist_port}) with timeout(#{@config.persist_timeout})"
         @database.connect(@config.persist_host, @config.persist_port, @config.persist_username, @config.persist_password, @config.persist_timeout)
       end
-
-
-
 
       # Get all object documents from database collection: 'collection'
       # @param collection [Symbol] - name of the collection
