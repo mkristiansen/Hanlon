@@ -25,16 +25,13 @@ module ProjectHanlon
       # Establishes connection to PostgreSQL database with the name "project_hanlon". The
       # database will be created if it doesn't exist.
       #
-      # @param hostname DNS name or IP-address of host
-      # @param port [Integer] Port number to use when connecting to the host
-      # @param username [String] Username that will be used to authenticate to the host
-      # @param password [String] Password that will be used to authenticate to the host
-      # @param timeout [Integer] Connection timeout
+      # @param options [Hash] Connection options (can include host, username, password, port,
+      #             connection timeout, and database name)
       # @return [Boolean] Connection status
       #
-      def connect(hostname, port, username, password, timeout)
+      def connect(options = {})
+        hostname, username, password, port, timeout, dbname = split_options(options)
         logger.debug "Connecting to PostgreSQL (#{username}@#{hostname}:#{port}) with timeout (#{timeout})"
-        dbname = $config.persist_dbname
         begin
           @connection = PG::Connection.new(:host => hostname, :port => port, :connect_timeout => timeout, :dbname => dbname, :user => username, :password => password)
         rescue PG::Error => e
@@ -161,7 +158,37 @@ module ProjectHanlon
         return true
       end
 
+
       private # PostgreSQL internal stuff we don't want exposed'
+
+      # Returns a map containing typical default values for use in connecting with a
+      # MongoDB database
+      #
+      # @return [Hash] Default options
+      #
+      def default_options
+        { 'host' => '127.0.0.1', 'username' => '', 'password' => '', 'port' => 5432, 'timeout' => 30, 'dbname' => 'project_hanlon' }
+      end
+
+      # splits the input options Hash map into it's constituent parts (but only
+      # after merging in the default options to fill in any missing values from
+      # the input options with typical default values)
+      #
+      # @return [Array] Connection options
+      #
+      def split_options(options)
+        # merge in default values to fill in any missing options with default values
+        options = default_options.merge(options)
+        # then extract the various configuration options used when connecting to the Cassandra
+        # cluster (host, username, password, port, timeout)
+        host = options['host']
+        username = options['username']
+        password = options['password']
+        port = options['port']
+        timeout = options['timeout']
+        dbname = options['dbname']
+        [host, username, password, port, timeout, dbname]
+      end
 
       SQLSTATE_NO_SUCH_TABLE = '42P01'
 

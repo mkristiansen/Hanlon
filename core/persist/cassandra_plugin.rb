@@ -22,19 +22,20 @@ module ProjectHanlon
 
       # Establishes connection to a keyspace in the Cassandra DB cluster
       #
-      # @param hostname [String]
-      # @param port [Integer]
-      # @param username [String] Username that will be used to authenticate to the host
-      # @param password [String] Password that will be used to authenticate to the host
-      # @param timeout [Integer] Connection timeout
+      # @param options [Hash] Connection options (can include hosts, username, password, port,
+      #             connection timeout, keyspace, replication strategy and replication factor)
       # @return [Boolean] Connection status
       #
-      def connect(hostname, port, username, password, timeout)
-        logger.debug "Connecting to Cassandra (#{hostname}:#{port}) with timeout (#{timeout})"
+      def connect(options = {})
+        hosts, username, password, port, timeout, @keyspace, @repl_strategy, @repl_factor = split_options(options)
+        logger.debug "Connecting to Cassandra (#{hosts}:#{port}) with timeout (#{timeout})"
         begin
-          hosts = [hostname]
-          # @cluster = Cassandra.cluster(username: username, password: password, hosts: hosts, idle_timeout: nil)
-          @cluster = Cassandra.cluster(hosts: hosts, idle_timeout: nil)
+          host_list = hosts.split(',')
+          if username && !(username.empty?)
+            @cluster = Cassandra.cluster(username: username, password: password, hosts: hosts, idle_timeout: timeout)
+          else
+            @cluster = Cassandra.cluster(hosts: host_list, idle_timeout: timeout)
+          end
           @session = start_session
           @connected_to_db = true
         rescue Errors::NoHostsAvailable
@@ -70,7 +71,7 @@ module ProjectHanlon
       #
       def is_db_selected?
         #logger.debug "Is ProjectHanlon DB selected?(#{(@session != nil and @cluster.active?)})"
-        (@connected_to_db && @session.keyspace == $config.persist_dbname)
+        (@connected_to_db && @session.keyspace == @keyspace)
       end
 
 
@@ -172,23 +173,55 @@ module ProjectHanlon
 
       private # Cassandra internal stuff we don't want exposed'
 
+      # Returns a map containing typical default values for use in connecting with a
+      # Cassandra database
+      #
+      # @return [Hash] Default options
+      #
+      def default_options
+        { 'hosts' => '127.0.0.1', 'username' => '', 'password' => '', 'port' => 9042, 'timeout' => nil,
+          'keyspace' => 'project_hanlon', 'repl_strategy' => 'SimpleStrategy', 'repl_factor' => 1 }
+      end
+
+      # splits the input options Hash map into it's constituent parts (but only
+      # after merging in the default options to fill in any missing values from
+      # the input options with typical default values)
+      #
+      # @return [Array] Connection options
+      #
+      def split_options(options)
+        # merge in default values to fill in any missing options with default values
+        options = default_options.merge(options)
+        # then extract the various configuration options used when connecting to the Cassandra
+        # cluster (hosts, username, password, port, timeout, keyspace, repl_strategy, and repl_factor)
+        hosts = options['hosts']
+        username = options['username']
+        password = options['password']
+        port = options['port']
+        timeout = options['timeout']
+        keyspace = options['keyspace']
+        repl_strategy = options['repl_strategy']
+        repl_factor = options['repl_factor']
+        [hosts, username, password, port, timeout, keyspace, repl_strategy, repl_factor]
+      end
+
       # Starts a session connected to the keyspace corresponding to the 'persist_dbname'
       # stated in the Hanlon server configuration; note that if there is no corresponding
       # keyspace in the cluster, then the requested keyspace will be created by this method
-      # TODO: sort out how best to handle replication_factor of this keyspace, currently defaults to '1'
       def start_session
-        keyspace = $config.persist_dbname
         # if there is no keyspace by this name already in the cluster, then
         # create it (and setup a session that uses it)
-        unless @cluster.has_keyspace?(keyspace)
-          keyspace_definition = "CREATE KEYSPACE #{keyspace} WITH replication = { 'class': 'SimpleStrategy', 'replication_factor': 1 }"
+        unless @cluster.has_keyspace?(@keyspace)
+puts "@keyspace => '#{@keyspace}'"
+          keyspace_definition = "CREATE KEYSPACE #{@keyspace} WITH replication = { 'class': '#{@repl_strategy}', 'replication_factor': #{@repl_factor} }"
+puts keyspace_definition
           session = @cluster.connect
           session.execute(keyspace_definition)
-          session.execute("USE #{keyspace}")
+          session.execute("USE #{@keyspace}")
           return session
         end
         # else just connect to the existing keyspace
-        @cluster.connect(keyspace)
+        @cluster.connect(@keyspace)
       end
 
       # checks to ensure that the named table exists; if not it is created
@@ -197,8 +230,7 @@ module ProjectHanlon
         # to create the table
         create_table = false
         # search the keyspace for the collection_name in question
-        keyspace = $config.persist_dbname
-        result = @session.execute("SELECT columnfamily_name from system.schema_columnfamilies where keyspace_name = '#{keyspace}'")
+        result = @session.execute("SELECT columnfamily_name from system.schema_columnfamilies where keyspace_name = '#{@keyspace}'")
         if result.empty?
           create_table = true
         else

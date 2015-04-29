@@ -15,14 +15,10 @@ module ProjectHanlon
 
       # Establishes connection to the data store.
       #
-      # @param hostname [String] DNS name or IP-address of host
-      # @param port [Integer] Port number to use when connecting to the host
-      # @param username [String] Username that will be used to authenticate to the host
-      # @param password [String] Password that will be used to authenticate to the host
-      # @param timeout [Integer] Connection timeout
+      # @param options [Hash] Connection options (will vary with the type of plugin)
       # @return [Boolean] Connection status
       #
-      def connect(hostname, port, username, password, timeout)
+      def connect(options = {})
         raise NotImplementedError
       end
 

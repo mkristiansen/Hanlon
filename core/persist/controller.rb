@@ -80,8 +80,26 @@ module ProjectHanlon
 
       # Connect to database using ProjectHanlon::Persist::Database::Plugin loaded
       def connect_database
-        logger.debug "Connecting to database(#{@config.persist_username}#{@config.persist_host}:#{@config.persist_port}) with timeout(#{@config.persist_timeout})"
-        @database.connect(@config.persist_host, @config.persist_port, @config.persist_username, @config.persist_password, @config.persist_timeout)
+        options_file = @config.persist_options_file
+        logger.debug "Loading options from file '#{$config_file_path}/#{options_file}'"
+        # if a persist_options_file parameter was included in the server configuration,
+        # then load it (as YAML) into the 'options' Hash map; else use the old-style
+        # Hanlon configuration parameters to fill in the required options (the required
+        # fields will vary a bit depending on the plugin type)
+        # TODO: Catch failed YAML.load_file() calls and throw reasonable error
+        options = {}
+        if options_file && !(options_file.empty?)
+          options = YAML.load_file("#{$app_root}/config/#{options_file}")
+        elsif @config.persist_mode == :cassandra
+          options = { 'hosts' => @config.persist_host, 'username' => @config.persist_username,
+                      'password' => @config.persist_password, 'port' => @config.persist_port,
+                      'timeout' => @config.persist_timeout, 'keyspace' => @config.persist_dbname}
+        elsif [:mongo, :postgres].include?(@config.persist_mode)
+          options = { 'host' => @config.persist_host, 'username' => @config.persist_username,
+                      'password' => @config.persist_password, 'port' => @config.persist_port,
+                      'timeout' => @config.persist_timeout, 'dbname' => @config.persist_dbname}
+        end
+        @database.connect(options)
       end
 
       # Get all object documents from database collection: 'collection'
