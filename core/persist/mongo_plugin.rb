@@ -22,14 +22,12 @@ module ProjectHanlon
 
       # Establishes connection to MongoDB
       #
-      # @param hostname [String]
-      # @param port [Integer]
-      # @param username [String] Username that will be used to authenticate to the host
-      # @param password [String] Password that will be used to authenticate to the host
-      # @param timeout [Integer] Connection timeout
+      # @param options [Hash] Connection options (can include host, username, password, port,
+      #             connection timeout, and database name)
       # @return [Boolean] Connection status
       #
-      def connect(hostname, port, username, password, timeout)
+      def connect(options = {})
+        hostname, username, password, port, timeout, dbname = split_options(options)
         logger.debug "Connecting to MongoDB (#{hostname}:#{port}) with timeout (#{timeout})"
         begin
           @connection = Mongo::Connection.new(hostname, port, { :connect_timeout => timeout })
@@ -46,7 +44,11 @@ module ProjectHanlon
           logger.error "Mongo::OperationTimeout"
           return false
         end
-        @hanlon_database = @connection.db($config.persist_dbname)
+        @hanlon_database = @connection.db(dbname)
+        if username && !(username.empty?)
+          auth = @hanlon_database.authenticate(username, password)
+          raise Mongo::ConnectionFailure.new "Failed to authenticate against #{dbname} using username/password" unless auth
+        end
         @connection.active?
       end
 
@@ -181,6 +183,35 @@ module ProjectHanlon
 
 
       private # Mongo internal stuff we don't want exposed'
+
+      # Returns a map containing typical default values for use in connecting with a
+      # MongoDB database
+      #
+      # @return [Hash] Default options
+      #
+      def default_options
+        { 'host' => '127.0.0.1', 'username' => '', 'password' => '', 'port' => 27017, 'timeout' => 30, 'dbname' => 'project_hanlon' }
+      end
+
+      # splits the input options Hash map into it's constituent parts (but only
+      # after merging in the default options to fill in any missing values from
+      # the input options with typical default values)
+      #
+      # @return [Array] Connection options
+      #
+      def split_options(options)
+        # merge in default values to fill in any missing options with default values
+        options = default_options.merge(options)
+        # then extract the various configuration options used when connecting to the Cassandra
+        # cluster (host, username, password, port, timeout)
+        host = options['host']
+        username = options['username']
+        password = options['password']
+        port = options['port']
+        timeout = options['timeout']
+        dbname = options['dbname']
+        [host, username, password, port, timeout, dbname]
+      end
 
       # Gets the current version number and returns an incremented value, or returns '1' if none exists
       # @param object_doc [Hash]

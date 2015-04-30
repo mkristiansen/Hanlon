@@ -216,7 +216,6 @@ module Hanlon
             #     req_metadata_params | Hash   | The metadata parameters to use for the new model   |         | Default: unavailable
             desc "Update a model instance (by UUID)"
             params do
-              requires :uuid, type: String, desc: "The model's UUID"
               optional "label", type: String, desc: "The model's new label"
               optional "image_uuid", type: String, default: "false", desc: "The new image (by UUID)"
               optional "req_metadata_params", type: Hash, desc: "The (JSON) metadata hash parameters"
@@ -268,9 +267,6 @@ module Hanlon
             # DELETE /model/{uuid}
             # Remove a Hanlon model (by UUID)
             desc "Remove a model instance (by UUID)"
-            params do
-              requires :uuid, type: String, desc: "The model's UUID", desc: "The model's UUID"
-            end
             delete do
               model_uuid = params[:uuid]
               model = SLICE_REF.get_object("model_with_uuid", :model, model_uuid)

@@ -25,6 +25,12 @@ module ProjectHanlon
           #require "project_hanlon/persist/mongo_plugin" unless ProjectHanlon::Persist.const_defined?(:MongoPlugin)
           require "persist/mongo_plugin" unless ProjectHanlon::Persist.const_defined?(:MongoPlugin)
           @database = ProjectHanlon::Persist::MongoPlugin.new
+        elsif (config.persist_mode == :cassandra)
+          logger.debug "Using Cassandra plugin"
+          # ToDo::Sankar::Clean junk code
+          #require "project_hanlon/persist/mongo_plugin" unless ProjectHanlon::Persist.const_defined?(:MongoPlugin)
+          require "persist/cassandra_plugin" unless ProjectHanlon::Persist.const_defined?(:CassandraPlugin)
+          @database = ProjectHanlon::Persist::CassandraPlugin.new
         elsif (config.persist_mode == :postgres)
           logger.debug "Using Postgres plugin"
           # ToDo::Sankar::Clean junk code
@@ -74,12 +80,36 @@ module ProjectHanlon
 
       # Connect to database using ProjectHanlon::Persist::Database::Plugin loaded
       def connect_database
-        logger.debug "Connecting to database(#{@config.persist_username}#{@config.persist_host}:#{@config.persist_port}) with timeout(#{@config.persist_timeout})"
-        @database.connect(@config.persist_host, @config.persist_port, @config.persist_username, @config.persist_password, @config.persist_timeout)
+        options_file = @config.persist_options_file
+        logger.debug "Loading options from file '#{$config_file_path}/#{options_file}'"
+        # if a persist_options_file parameter was included in the server configuration,
+        # then load it (as YAML) into the 'options' Hash map
+        options = {}
+        if options_file && !(options_file.empty?)
+          full_path_to_file = "#{$app_root}/config/#{options_file}"
+          raise RuntimeError.new "Options file '#{full_path_to_file}' from server configuration does not exist" unless File.file?(full_path_to_file)
+          begin
+            options = YAML::load(File.open(full_path_to_file))
+          rescue Error => e
+            raise RuntimeError.new "Failed to load options file (#{e.class}): #{e.message}"
+          end
+          raise RuntimeError.new "Options file '#{full_path_to_file}' from server configuration is not a YAML file" unless options.class == Hash
+        end
+        # now, check for any "old-style" configuration parameters, and merge them
+        # with any options that may have been read from an options file (above).
+        # Note that values specified in an options file (read above) will override
+        # the "old-style" options read here
+        if @config.persist_mode == :cassandra
+          options = { 'hosts' => @config.persist_host, 'username' => @config.persist_username,
+                      'password' => @config.persist_password, 'port' => @config.persist_port,
+                      'timeout' => @config.persist_timeout, 'keyspace' => @config.persist_dbname}.merge(options)
+        elsif [:mongo, :postgres].include?(@config.persist_mode)
+          options = { 'host' => @config.persist_host, 'username' => @config.persist_username,
+                      'password' => @config.persist_password, 'port' => @config.persist_port,
+                      'timeout' => @config.persist_timeout, 'dbname' => @config.persist_dbname}.merge(options)
+        end
+        @database.connect(options)
       end
-
-
-
 
       # Get all object documents from database collection: 'collection'
       # @param collection [Symbol] - name of the collection

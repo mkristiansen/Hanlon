@@ -147,6 +147,7 @@ module ProjectHanlon
       attr_accessor :hanlon_subnets
 
       attr_accessor :persist_mode
+      attr_accessor :persist_options_file
       attr_accessor :persist_host
       attr_accessor :persist_port
       attr_accessor :persist_username
@@ -216,6 +217,7 @@ module ProjectHanlon
           'persist_password'         => '',
           'persist_timeout'          => 10,
           'persist_dbname'           => "project_hanlon",
+          'persist_options_file'     => '',
           'persist_path'             => default_persist_path,
 
           'ipmi_username'            => '',

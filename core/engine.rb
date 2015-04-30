@@ -490,7 +490,7 @@ module ProjectHanlon
       node_array.each { |node|
         # skip to the next one if this node is either bound or
         # set to rebind
-        next if ['bound','rebind'].include(node_status(node))
+        next if ['bound','rebind'].include?(node_status(node))
         elapsed_time = Time.now.to_i - node.timestamp.to_i
         if elapsed_time > node_expire_timeout
           node_uuid = node.uuid
