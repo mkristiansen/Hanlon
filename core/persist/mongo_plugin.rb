@@ -47,7 +47,7 @@ module ProjectHanlon
         @hanlon_database = @connection.db(dbname)
         if username && !(username.empty?)
           auth = @hanlon_database.authenticate(username, password)
-          raise InternalError "Failed to authenticate against #{dbname} using username/password" unless auth
+          raise Mongo::ConnectionFailure.new "Failed to authenticate against #{dbname} using username/password" unless auth
         end
         @connection.active?
       end

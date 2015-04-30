@@ -1,4 +1,5 @@
 require "cassandra"
+require "cassandra/errors"
 require "set"
 require "persist/plugin_interface"
 
@@ -32,24 +33,20 @@ module ProjectHanlon
         begin
           host_list = hosts.split(',')
           if username && !(username.empty?)
-            @cluster = Cassandra.cluster(username: username, password: password, hosts: hosts, idle_timeout: timeout)
+            @cluster = Cassandra.cluster(hosts: host_list, port: port, username: username, password: password, idle_timeout: timeout)
           else
-            @cluster = Cassandra.cluster(hosts: host_list, idle_timeout: timeout)
+            @cluster = Cassandra.cluster(hosts: host_list, port: port, idle_timeout: timeout)
           end
           @session = start_session
           @connected_to_db = true
-        rescue Errors::NoHostsAvailable
-          logger.error "Errors::NoHostsAvailable"
-          return false
-        rescue Errors::AuthenticationError
-          logger.error "Errors::AuthenticationError"
-          return false
-        rescue Errors::ProtocolError
-          logger.error "Errors::ProtocolError"
-          return false
-        rescue Error
-          logger.error "Error"
-          return false
+        rescue Cassandra::Errors::NoHostsAvailable => e
+          raise Cassandra::Errors::InternalError.new "Error connecting to to Cassandra at #{hosts}:#{port} (#{e.class}): #{e.message}"
+        rescue Cassandra::Errors::AuthenticationError => e
+          raise Cassandra::Errors::InternalError.new "Error connecting to to Cassandra at #{hosts}:#{port} (#{e.class}): #{e.message}"
+        rescue Cassandra::Errors::ProtocolError => e
+          raise Cassandra::Errors::InternalError.new "Error connecting to to Cassandra at #{hosts}:#{port} (#{e.class}): #{e.message}"
+        rescue Error => e
+          raise Cassandra::Errors::InternalError.new "Error connecting to to Cassandra at #{hosts}:#{port} (#{e.class}): #{e.message}"
         end
         @connected_to_db
       end
@@ -212,9 +209,7 @@ module ProjectHanlon
         # if there is no keyspace by this name already in the cluster, then
         # create it (and setup a session that uses it)
         unless @cluster.has_keyspace?(@keyspace)
-puts "@keyspace => '#{@keyspace}'"
           keyspace_definition = "CREATE KEYSPACE #{@keyspace} WITH replication = { 'class': '#{@repl_strategy}', 'replication_factor': #{@repl_factor} }"
-puts keyspace_definition
           session = @cluster.connect
           session.execute(keyspace_definition)
           session.execute("USE #{@keyspace}")
