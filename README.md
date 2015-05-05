@@ -11,7 +11,7 @@ designed to deploy both bare-metal and virtual computer resources. Hanlon
 provides broker plugins for integration with third party such as Puppet.
 
 Hanlon started its life as Razor so you may encounter links to original
-created-for-Razor content.  The following links, for example, provide a
+created-for-Razor content.  The following links, for example, provide
 background info about the project:
 
 * Razor Overview: [Nickapedia.com](http://nickapedia.com/2012/05/21/lex-parsimoniae-cloud-provisioning-with-a-razor)
@@ -38,7 +38,8 @@ how to make changes yourself.
 We welcome contributions at all levels, including working strictly on our
 documentation, tests, or code contributions.  We also welcome, and value,
 input about your experiences with Project Hanlon, and provisioning in general,
-on the mailing list as we discuss how the project should solve problems.
+on the mailing list as we discuss how the project might solve these sorts of
+problems.
 
 
 ## Installation  
@@ -68,13 +69,13 @@ into any errors or omissions in that list.
 ## Hanlon MicroKernel
 
 Hanlon uses an associated Hanlon-Microkernel instance to discover new nodes.
-Pre-build images of the current Hanlon-Microkernel (v2.0.0) are officially
+Pre-build images of the current Hanlon-Microkernel (v2.0.1) are officially
 available at:
 
-[https://github.com/csc/Hanlon-Microkernel/releases/tag/v2.0.0](https://github.com/csc/Hanlon-Microkernel/releases/tag/v2.0.0)
+[https://github.com/csc/Hanlon-Microkernel/releases/tag/v2.0.1](https://github.com/csc/Hanlon-Microkernel/releases/tag/v2.0.1)
 
-On that page, you will find three Microkernel images (`hnl_mk_debug-image.2.0.0.iso`,
-`hnl_mk_dev-image.2.0.0.iso` and `hnl_mk_prod-image.2.0.0.iso`). Those correspond to the
+On that page, you will find three Microkernel images (`hnl_mk_debug-image.2.0.1.iso`,
+`hnl_mk_dev-image.2.0.1.iso` and `hnl_mk_prod-image.2.0.1.iso`). Those correspond to the
 debug, development and production Microkernels (respectively). The difference between
 them is as follows:
 
@@ -123,6 +124,12 @@ as well as information on the new CSC Open Source Program:
 [Announcing Hanlon and the Hanlon-Microkernel](http://osclouds.wordpress.com/?p=2)
 * Dan Hushon's blog entry on the new CSC Open Source Program:
 [Finding Value in Open Source](http://www.vdatacloud.com/blogs/2014/05/22/finding-value-in-opensource/)
+* A blog posting by Tom McSweeney describing the changes that went into the
+[Hanlon 2.0 Release](https://osclouds.wordpress.com/2014/10/31/announcing-the-release-of-hanlon-v2-0/)
+in October, 2014
+* Tom's blog entry from March, 2015 announcing support for Windows provisioning in Hanlon:
+[Hanlon does Windows!](https://osclouds.wordpress.com/2015/03/05/hanlon-does-windows), along with the
+associated [screencast](http://bit.ly/1B7VfGM) by Tom demonstrating this Windows support
 
 This set of links, on the other hand, provide an introduction to the original Razor project
 (and, as such, may be of interest to those new to the Razor/Hanlon community):
