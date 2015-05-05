@@ -143,7 +143,7 @@ interest to those new to the Razor/Hanlon community):
 Even though the Puppet Labs module described in the last link is no longer maintained, and
 even though it doesn't support Hanlon, we included it here because we felt that the information
 in that blog posting may provide useful to those who would like to develop a corresponding
-Hanlon module since the Hanlon project is firmly rooted in the original Razor project.
+Hanlon module.
 
 
 [hanlon-project]: https://groups.google.com/d/forum/hanlon-project
