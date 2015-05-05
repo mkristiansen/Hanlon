@@ -127,25 +127,23 @@ as well as information on the new CSC Open Source Program:
 * A blog posting by Tom McSweeney describing the changes that went into the
 [Hanlon 2.0 Release](https://osclouds.wordpress.com/2014/10/31/announcing-the-release-of-hanlon-v2-0/)
 in October, 2014
-* Tom's blog entry from March, 2015 announcing support for Windows provisioning in Hanlon:
-[Hanlon does Windows!](https://osclouds.wordpress.com/2015/03/05/hanlon-does-windows), along with the
+* Tom's blog entry from March, 2015 announcing support for Windows provisioning in Hanlon
+([Hanlon does Windows!](https://osclouds.wordpress.com/2015/03/05/hanlon-does-windows)) along with the
 associated [screencast](http://bit.ly/1B7VfGM) by Tom demonstrating this Windows support
 
-This set of links, on the other hand, provide an introduction to the original Razor project
-(and, as such, may be of interest to those new to the Razor/Hanlon community):
+Finally, these links provide an introduction to the original Razor project
+(and, given Hanlon's roots in the original Razor project, they may be of
+interest to those new to the Razor/Hanlon community):
 
-* Razor Overview: [Nickapedia.com](http://nickapedia.com/2012/05/21/lex-parsimoniae-cloud-provisioning-with-a-razor)
-* Nick Weaver's Razor Session from PuppetConf 2012: [Youtube](http://www.youtube.com/watch?v=cR1bOg0IU5U)
-
-Finally, this link provides information on the Puppet Labs Module that was written to manage
-the deployment and configuration of Razor by Puppet.
-
-* The Puppet Labs Razor Module:
+* The original Razor Overview posting: [Nickapedia.com](http://nickapedia.com/2012/05/21/lex-parsimoniae-cloud-provisioning-with-a-razor)
+* A video of Nick Weaver's Razor Session from PuppetConf 2012: [Youtube](http://www.youtube.com/watch?v=cR1bOg0IU5U)
+* The original posting by Nan Liu describing the first Puppet Labs Razor Module:
 [Puppetlabs.com](http://puppetlabs.com/blog/introducing-razor-a-next-generation-provisioning-solution/)
 
-Even though it doesn't support Hanlon, the information in that blog may provide useful to those
-who would like to develop a corresponding Hanlon module since the Hanlon is firmly rooted in the
-original Razor project.
+Even though the Puppet Labs module described in the last link is no longer maintained, and
+even though it doesn't support Hanlon, we included it here because we felt that the information
+in that blog posting may provide useful to those who would like to develop a corresponding
+Hanlon module since the Hanlon project is firmly rooted in the original Razor project.
 
 
 [hanlon-project]: https://groups.google.com/d/forum/hanlon-project
