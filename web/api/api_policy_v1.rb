@@ -406,6 +406,9 @@ module Hanlon
               policy = SLICE_REF.get_object("policy_with_uuid", :policy, policy_uuid)
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Policy with UUID: [#{policy_uuid}]" unless policy && (policy.class != Array || policy.length > 0)
               raise ProjectHanlon::Error::Slice::CouldNotRemove, "Could not remove Policy [#{policy.uuid}]" unless get_data_ref.delete_object(policy)
+              # ensure policy rules table is updated to reflect removed policy
+              policy_rules = ProjectHanlon::Policies.instance
+              policy_rules.policy_table.update_table
               slice_success_response(SLICE_REF, :remove_policy_by_uuid, "Policy [#{policy.uuid}] removed", :success_type => :removed)
             end     # end DELETE /policy/{uuid}
 
