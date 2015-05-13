@@ -1,6 +1,6 @@
 #!/bin/bash
-# Kickstart for RHEL/CentOS 6
-# see: http://docs.redhat.com/docs/en-US/Red_Hat_Enterprise_Linux/6/html/Installation_Guide/s1-kickstart2-options.html
+# Kickstart for RHEL 7
+# see: https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/7/html/Installation_Guide/sect-kickstart-syntax.html
 
 install
 url --url=http://<%= config.hanlon_server %>:<%= config.api_port %><%= config.websvc_root %>/image/os/<%= @image_uuid %>
@@ -14,10 +14,6 @@ authconfig --enableshadow --passalgo=sha512 --enablefingerprint
 selinux --disabled
 timezone --utc America/Denver
 bootloader --location=mbr --driveorder=sda --append=crashkernel=auto rhgb quiet
-# The following is the partition information you requested
-# Note that any partitions you deleted are not expressed
-# here so unless you clear all partitions first, this is
-# not guaranteed to work
 clearpart --all
 zerombr
 autopart
@@ -37,5 +33,4 @@ echo bash /tmp/hanlon_postinstall.sh >> /etc/rc.local
 chmod +x /tmp/hanlon_postinstall.sh
 # This line needs to be added otherwise rc.local will not execute on boot
 chmod +x /etc/rc.d/rc.local
-############
 %end
