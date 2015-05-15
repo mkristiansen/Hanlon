@@ -92,7 +92,7 @@ module ProjectHanlon
         #puts "#{policy_index} == #{(@p_table.count - 1)}"
         # throw an error if the new_index is not within the bounds of the policy table
         if new_index > (@p_table.count - 1) || new_index < 0
-          raise ProjectHanlon::Error::Slice::InputError, "New line number '#{new_index}' is not valid; should be an between 0 and #{@p_table.count - 1}"
+          raise ProjectHanlon::Error::Slice::InputError, "Line number '#{new_index}' is not valid; should be an between 0 and #{@p_table.count - 1}"
         end
         # skip operation if new_index is the same as the existing index or out of the bounds
         # of the policy table

@@ -214,7 +214,14 @@ module Hanlon
             # if a line number was provided, move the policy to that position in
             # the policy rules table
             if line_number
-              policy_rules.move_policy_to_idx(policy.uuid, line_number.to_i)
+              begin
+                policy_rules.move_policy_to_idx(policy.uuid, line_number.to_i)
+              rescue ProjectHanlon::Error::Slice::InputError => e
+                # if got here, could not create policy at stated position, so remove
+                # the policy we already created from the system and rethrow the error
+                get_data_ref.delete_object(policy)
+                raise e
+              end
               policy.line_number = line_number
             else
               # Issue 125 Fix - add policy serial number & bind_counter to rest api
