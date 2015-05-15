@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name        = 'hanlon'
-  s.version     = '2.3.0'
-  s.date        = '2015-03-05'
+  s.version     = '2.4.0'
+  s.date        = '2015-05-15'
   s.summary     = 'Project Hanlon'
   s.description = 'Next-generation automation software for bare-metal and virtual server provisioning'
   s.authors     = ['Nicholas Weaver', 'Tom McSweeney']
