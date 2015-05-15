@@ -25,6 +25,7 @@ module ProjectHanlon
         @description = "Redhat Generic Model"
         # Metadata vars
         @hostname_prefix = nil
+        @partition_scheme = nil
         # State / must have a starting state
         @current_state = :init
         # Image UUID
@@ -44,11 +45,11 @@ module ProjectHanlon
                 :description => "node hostname prefix (will append node number)"
             },
             "@domainname" => {
-              :default     => "localdomain",
-              :example     => "example.com",
-              :validation  => '^[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9](\.[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])*$',
-              :required    => true,
-              :description => "local domain name (will be used in /etc/hosts file)"
+                :default     => "localdomain",
+                :example     => "example.com",
+                :validation  => '^[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9](\.[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])*$',
+                :required    => true,
+                :description => "local domain name (will be used in /etc/hosts file)"
             },
             "@root_password" => {
                 :default     => "test1234",
@@ -57,6 +58,15 @@ module ProjectHanlon
                 :required    => true,
                 :description => "root password (> 8 characters)"
             },
+        }
+        @opt_metadata_hash = {
+            "@partition_scheme" => {
+                :default     => "",
+                :example     => "",
+                :validation  => '',
+                :required    => false,
+                :description => "YAML formatted partitioning scheme"
+            }
         }
       end
 
@@ -276,6 +286,14 @@ module ProjectHanlon
 
       def api_svc_uri
         "http://#{config.hanlon_server}:#{config.api_port}#{config.websvc_root}"
+      end
+
+      def partition_scheme
+        if @partition_scheme
+          @partition_scheme['partition_scheme']
+        else
+          'autopart'
+        end
       end
 
       def generate_kickstart(policy_uuid)

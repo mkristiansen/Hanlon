@@ -16,7 +16,8 @@ timezone --utc America/Denver
 bootloader --location=mbr --driveorder=sda --append=crashkernel=auto rhgb quiet
 clearpart --all
 zerombr
-autopart
+# Partitioning scheme
+<%= partition_scheme %>
 # reboot automatically
 reboot
 
