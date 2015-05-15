@@ -1,6 +1,6 @@
 # Thanks to William Lam for being the guru
 accepteula
-clearpart --firstdisk --overwritevmfs
+clearpart --alldrives --overwritevmfs
 install --firstdisk --overwritevmfs
 network --bootproto=dhcp --device=vmnic0
 rootpw <%= @root_password %>

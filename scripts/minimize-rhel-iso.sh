@@ -70,7 +70,7 @@ ISO_MOUNT='/mnt/cdrom'
 
 # cleanup from previous build if it was interrupted
 if [[ ! -d ${BUILD_DIR} ]]; then
-	rm -rf ${BUILD_DIR}
+    rm -rf ${BUILD_DIR}
 fi
 
 if [[ -e /etc/yum.repos.d/rhel-dvd.repo ]]; then

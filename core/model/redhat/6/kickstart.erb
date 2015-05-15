@@ -14,12 +14,8 @@ authconfig --enableshadow --passalgo=sha512 --enablefingerprint
 selinux --disabled
 timezone --utc America/Denver
 bootloader --location=mbr --driveorder=sda --append=crashkernel=auto rhgb quiet
-# The following is the partition information you requested
-# Note that any partitions you deleted are not expressed
-# here so unless you clear all partitions first, this is
-# not guaranteed to work
+clearpart --all
 zerombr
-clearpart --all --initlabel
 autopart
 # reboot automatically
 reboot
@@ -34,4 +30,4 @@ curl <%= api_svc_uri %>/policy/callback/<%= policy_uuid %>/kickstart/end
 curl -o /tmp/hanlon_postinstall.sh <%= api_svc_uri %>/policy/callback/<%= policy_uuid %>/postinstall/inject
 echo bash /tmp/hanlon_postinstall.sh >> /etc/rc.local
 chmod +x /tmp/hanlon_postinstall.sh
-############
+%end
