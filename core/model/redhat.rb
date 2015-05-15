@@ -290,7 +290,7 @@ module ProjectHanlon
 
       def partition_scheme
         if @partition_scheme
-          @partition_scheme['partition_scheme']
+          @partition_scheme
         else
           'autopart'
         end
