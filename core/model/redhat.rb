@@ -35,7 +35,6 @@ module ProjectHanlon
         # Enable agent brokers for this model
         @broker_plugin = :agent
         @final_state = :os_complete
-        from_hash(hash) unless hash == nil
         @req_metadata_hash = {
             "@hostname_prefix" => {
                 :default     => "node",
@@ -68,6 +67,7 @@ module ProjectHanlon
                 :description => "YAML formatted partitioning scheme"
             }
         }
+        from_hash(hash) unless hash == nil
       end
 
       def callback
