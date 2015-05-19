@@ -157,6 +157,7 @@ module Hanlon
           #     model_uuid        | String | The UUID of the model to use             |         | Default: unavailable
           #     tags              | String | The (comma-separated) list of tags       |         | Default: unavailable
           #     broker_uuid       | String | The UUID of the broker to use            |         | Default: "none"
+          #     line_number       | String | The line number in the policy table      |         | Default: nil
           #     enabled           | String | A flag indicating if policy is enabled   |         | Default: "false"
           #     maximum           | String | The maximum_count for the policy         |         | Default: "0"
           desc "Create a new policy instance"
@@ -166,6 +167,7 @@ module Hanlon
             requires "model_uuid", type: String, desc: "The model to use (by UUID)"
             requires "tags", type: String, desc: "The tags to match against"
             optional "broker_uuid", type: String, default: "none", desc: "The broker to use (by UUID)"
+            optional "line_number", type: String, default: nil, desc: "Line number in the policy table for new policy"
             optional "enabled", type: String, default: "false", desc: "Enabled when created?"
             optional "maximum", type: String, default: "0", desc: "Max. number to match against"
           end
@@ -176,6 +178,7 @@ module Hanlon
             model_uuid = params["model_uuid"]
             broker_uuid = params["broker_uuid"] unless params["broker_uuid"] == "none"
             tags = params["tags"]
+            line_number = params["line_number"]
             enabled = params["enabled"]
             maximum = params["maximum"]
             # check for errors in inputs
@@ -189,6 +192,8 @@ module Hanlon
               broker = SLICE_REF.get_object("broker_by_uuid", :broker, broker_uuid)
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Invalid Broker UUID [#{broker_uuid}]" unless (broker && (broker.class != Array || broker.length > 0)) || broker_uuid == "none"
             end
+            line_number = line_number.strip if line_number
+            raise ProjectHanlon::Error::Slice::InputError, "Index '#{line_number}' is not an integer" if line_number && !/^[+-]?\d+$/.match(line_number)
             # split the tags and determine how they should be matched to a node for this policy (either an 'and' or an 'or')
             tags, match_using = split_tags(tags)
             raise ProjectHanlon::Error::Slice::MissingTags, "Must provide at least one tag ['tag(,tag)']" unless tags.count > 0
@@ -206,8 +211,23 @@ module Hanlon
             # Add policy
             policy_rules         = ProjectHanlon::Policies.instance
             raise(ProjectHanlon::Error::Slice::CouldNotCreate, "Could not create Policy") unless policy_rules.add(policy)
+            # if a line number was provided, move the policy to that position in
+            # the policy rules table
+            if line_number
+              begin
+                policy_rules.move_policy_to_idx(policy.uuid, line_number.to_i)
+              rescue ProjectHanlon::Error::Slice::InputError => e
+                # if got here, could not create policy at stated position, so remove
+                # the policy we already created from the system and rethrow the error
+                get_data_ref.delete_object(policy)
+                raise e
+              end
+              policy.line_number = line_number
+            else
+              # Issue 125 Fix - add policy serial number & bind_counter to rest api
+              policy.line_number = policy.row_number
+            end
             # Issue 125 Fix - add policy serial number & bind_counter to rest api
-            policy.line_number = policy.row_number
             policy.bind_counter = policy.current_count
             slice_success_object(SLICE_REF, :create_policy, policy, :success_type => :created)
           end     # end POST /policy
@@ -366,7 +386,7 @@ module Hanlon
                 broker = SLICE_REF.get_object("broker_by_uuid", :broker, broker_uuid)
                 raise ProjectHanlon::Error::Slice::InvalidUUID, "Invalid Broker UUID [#{broker_uuid}]" unless (broker && (broker.class != Array || broker.length > 0)) || broker_uuid == "none"
               end
-              new_line_number = (new_line_number ? new_line_number.strip : nil)
+              new_line_number = new_line_number.strip if new_line_number
               raise ProjectHanlon::Error::Slice::InputError, "New index '#{new_line_number}' is not an integer" if new_line_number && !/^[+-]?\d+$/.match(new_line_number)
               if enabled
                 raise ProjectHanlon::Error::Slice::InputError, "Enabled flag must have a value of 'true' or 'false'" if enabled != "true" && enabled != "false"

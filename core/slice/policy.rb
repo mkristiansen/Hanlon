@@ -102,6 +102,14 @@ module ProjectHanlon
                   :uuid_is     => 'not_allowed',
                   :required    => true
                 },
+                { :name        => :tags,
+                  :default     => nil,
+                  :short_form  => '-t',
+                  :long_form   => '--tags TAG{,TAG,TAG}',
+                  :description => 'Policy tags. Comma delimited.',
+                  :uuid_is     => 'not_allowed',
+                  :required    => true
+                },
                 { :name        => :broker_uuid,
                   :default     => 'none',
                   :short_form  => '-b',
@@ -110,13 +118,13 @@ module ProjectHanlon
                   :uuid_is     => 'not_allowed',
                   :required    => false
                 },
-                { :name        => :tags,
+                { :name        => :line_number,
                   :default     => nil,
-                  :short_form  => '-t',
-                  :long_form   => '--tags TAG{,TAG,TAG}',
-                  :description => 'Policy tags. Comma delimited.',
+                  :short_form  => '-n',
+                  :long_form   => '--number LINE_NO',
+                  :description => 'Line number in policy rules table [default: nil].',
                   :uuid_is     => 'not_allowed',
-                  :required    => true
+                  :required    => false
                 },
                 { :name        => :enabled,
                   :default     => false,
@@ -188,7 +196,7 @@ module ProjectHanlon
                   :default     => nil,
                   :short_form  => '-n',
                   :long_form   => '--new-line-number NEW_NUM',
-                  :description => 'Change policy rule number.',
+                  :description => 'New line number in policy rules table.',
                   :uuid_is     => 'required',
                   :required    => true
                 }
@@ -254,8 +262,6 @@ module ProjectHanlon
         # call is used to indicate whether the choice of options from the
         # option_items hash must be an exclusive choice)
         check_option_usage(option_items, options, includes_uuid, false)
-        # check the values that were passed in
-        policy = new_object_from_template_name(POLICY_PREFIX, options[:template])
         # assign default values for (missing) optional parameters
         options[:maximum] = "0" if !options[:maximum]
         options[:broker_uuid] = "none" if !options[:broker_uuid]
@@ -268,6 +274,7 @@ module ProjectHanlon
             "model_uuid" => options[:model_uuid],
             "tags" => options[:tags],
             "broker_uuid" => options[:broker_uuid],
+            "line_number" => options[:line_number],
             "enabled" => options[:enabled],
             "maximum" => options[:maximum]
         }.to_json
