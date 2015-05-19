@@ -38,7 +38,6 @@ module ProjectHanlon
         # Default: no cloud config
         @cloud_config = nil
         @final_state = :os_complete
-        from_hash(hash) unless hash == nil
         @req_metadata_hash = {
           "@hostname_prefix" => {
             :default     => "node",
@@ -71,6 +70,7 @@ module ProjectHanlon
             :description  => "A yaml containing CoreOS cloud config options"
           }
         }
+        from_hash(hash) unless hash == nil
       end
 
       def callback
