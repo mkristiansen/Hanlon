@@ -3,7 +3,7 @@
 
 module ProjectHanlon
   module PolicyTemplate
-    class Base< ProjectHanlon::Object
+    class Base < ProjectHanlon::Object
       include(ProjectHanlon::Logging)
 
       attr_accessor :label

@@ -112,13 +112,19 @@ module ProjectHanlon
       end
     end
 
-    def check_policy_match(policy, node)
+    def check_policy_match(policy, node, default_policy_uuid = nil)
+      # Note; searching for a matching policy relies on the policies being evaluated
+      # in the order they appear in the policy rules table; if not then the default
+      # policy could be "matched" too early...
       if policy.tags.count > 0
         if check_tags(node.tags, policy) && policy.enabled.to_s == "true" && policy.is_under_maximum?
           logger.debug "Matching policy (#{policy.label}) for Node #{node.uuid} using tags#{policy.tags.inspect}"
           # We found a policy that matches
           return true
         end
+      elsif default_policy_uuid && policy.uuid == default_policy_uuid
+        logger.debug "Matching the default policy (#{policy.label}) for Node #{node.uuid}"
+        return true
       else
         logger.error "Policy (#{policy.label}) has no tags configured"
       end
@@ -130,11 +136,12 @@ module ProjectHanlon
       logger.debug "Evaluating policy rules vs Node #{node.uuid}"
       begin
         # Loop through each policy checking node's tags to see if that match
+        default_policy_uuid = ProjectHanlon::Policies.instance.get_default_policy
         @policies.get.each { |policy|
           # if we find a matching policy, then bind it to the node (as an
           # active_model instance) and return, otherwise continue on to the
           # next policy
-          if check_policy_match(policy, node)
+          if check_policy_match(policy, node, default_policy_uuid)
             mk_bind_policy(node, policy)
             return
           end

@@ -33,10 +33,50 @@ module ProjectHanlon
 
       def get_line_number(policy_uuid)
         @p_table.each_with_index { |p_item_uuid, index| return index if p_item_uuid == policy_uuid }
+        # if get here, the policy isn't in the policy rules table yet, so return
+        # the next position
+        return @p_table.size + 1
       end
 
-      def add_p_item(policy_uuid)
-        @p_table.push policy_uuid unless exists_in_array?(policy_uuid)
+      def size
+        @p_table.size
+      end
+
+      def check_new_index(new_index, move_flag = false)
+        # throw an error if the new_index is not within the bounds of the policy table
+        # (the size of the table less one if no default policy is defined; the size of
+        # the table less two if there is a default policy defined)
+        ProjectHanlon::Policies.instance.get_default_policy ? offset = 1 : offset = 0
+        # if we're moving (instead of inserting) then the limit is one less than
+        # if we're adding a new policy to the table
+        offset = offset + 1 if move_flag
+        max_index = @p_table.count - offset
+        if new_index > max_index
+          if offset == 1
+            raise ProjectHanlon::Error::Slice::InputError, "Line number '#{new_index}' is not valid; should be between 0 and #{max_index}"
+          else
+            raise ProjectHanlon::Error::Slice::InputError, "Cannot move policies below default policy; new line number must be between 0 and #{max_index}"
+          end
+        elsif new_index < 0
+          raise ProjectHanlon::Error::Slice::InputError, "Line number '#{new_index}' is not valid; should be between 0 and #{max_index}"
+        end
+      end
+
+      def add_p_item(policy_uuid, index = nil)
+        if exists_in_array?(policy_uuid)
+          # if this UUID is already in the policy table, we're actually
+          # moving it, not inserting it
+          move_to_idx(policy_uuid, index)
+        else
+          # if an index was provided, insert the new policy at that
+          # location, otherwise append it to the end of the array
+          if index
+            check_new_index(index)
+            @p_table.insert(index, policy_uuid)
+          else
+            @p_table.push policy_uuid
+          end
+        end
         update_table
       end
 
@@ -66,37 +106,13 @@ module ProjectHanlon
         self.update_self
       end
 
-      def move_higher(policy_uuid)
-        policy_index = find_policy_index(policy_uuid)
-        unless policy_index == 0
-          @p_table[policy_index], @p_table[policy_index - 1] = @p_table[policy_index - 1], @p_table[policy_index]
-          update_table
-          return true
-        end
-        false
-      end
-
-      def move_lower(policy_uuid)
-        policy_index = find_policy_index(policy_uuid)
-        #puts "#{policy_index} == #{(@p_table.count - 1)}"
-        unless policy_index == (@p_table.count - 1)
-          @p_table[policy_index], @p_table[policy_index + 1] = @p_table[policy_index + 1], @p_table[policy_index]
-          update_table
-          return true
-        end
-        false
-      end
-
       def move_to_idx(policy_uuid, new_index)
         policy_index = find_policy_index(policy_uuid)
-        #puts "#{policy_index} == #{(@p_table.count - 1)}"
-        # throw an error if the new_index is not within the bounds of the policy table
-        if new_index > (@p_table.count - 1) || new_index < 0
-          raise ProjectHanlon::Error::Slice::InputError, "Line number '#{new_index}' is not valid; should be an between 0 and #{@p_table.count - 1}"
-        end
-        # skip operation if new_index is the same as the existing index or out of the bounds
-        # of the policy table
+        # skip operation if new_index is the same as the existing index
         unless new_index == policy_index
+          # check to make sure the new_index is within the bounds supported
+          # by the policy table
+          check_new_index(new_index, true)
           if policy_index > new_index
             # moving policy higher
             while policy_index > new_index
@@ -205,13 +221,42 @@ module ProjectHanlon
       policies_array
     end
 
-    # When adding a policy
-    # Line number is preserved for updates, line_number is last for new
+    # returns the UUID of the default policy in the system (or nil
+    # if there is no default policy defined in the system)
+    #
+    # @return [String] policy_uuid
+    def get_default_policy
+      get.each { |policy|
+        next unless policy.is_a?(ProjectHanlon::PolicyTemplate::NoOp)
+        is_default = policy.is_default
+        return policy.uuid if is_default
+      }
+      nil
+    end
 
-    def add(new_policy)
+    # the line number is preserved for updates if no index is specified;
+    # if there is no index specified and we're adding a new policy then
+    # the line_number will default to the last position (unless there's
+    # a default policy in the system in which case it'll default to the
+    # next to the last position with the default policy kept in the last
+    # position at all times)
+    def add(new_policy, index = nil)
       get_data.persist_object(new_policy)
       pt = policy_table
-      pt.add_p_item(new_policy.uuid)
+      # check to see if a default policy exists, if so add the
+      # new policy to the policy table in the next to the last
+      # position (else append to the end as we've always done)
+      default_policy_uuid = get_default_policy
+      index = (pt.size-1) if index.nil? && default_policy_uuid && default_policy_uuid != new_policy.uuid
+      begin
+        pt.add_p_item(new_policy.uuid, index)
+      rescue ProjectHanlon::Error::Slice::InputError => e
+        # remove the object from the database if we failed to add it
+        # (unless, of course, our attempt to "add" it was really an
+        # attempt to move it to another position in the table)
+        get_data.delete_object(new_policy) unless pt.exists_in_array?(new_policy.uuid)
+        raise e
+      end
     end
 
     alias :update :add
@@ -221,22 +266,9 @@ module ProjectHanlon
       pt.get_line_number(policy_uuid)
     end
 
-    # Down is up in numbers (++)
-    def move_policy_up(policy_uuid)
-      pt = policy_table
-      pt.add_p_item(policy_uuid)
-      pt.move_higher(policy_uuid)
-    end
-
-    def move_policy_down(policy_uuid)
-      pt = policy_table
-      pt.add_p_item(policy_uuid)
-      pt.move_lower(policy_uuid)
-    end
-
     def move_policy_to_idx(policy_uuid, new_idx)
       pt = policy_table
-      pt.add_p_item(policy_uuid)
+      # pt.add_p_item(policy_uuid, new_idx)
       pt.move_to_idx(policy_uuid, new_idx)
     end
 
