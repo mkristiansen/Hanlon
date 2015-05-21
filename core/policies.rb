@@ -46,13 +46,17 @@ module ProjectHanlon
         # throw an error if the new_index is not within the bounds of the policy table
         # (the size of the table less one if no default policy is defined; the size of
         # the table less two if there is a default policy defined)
-        ProjectHanlon::Policies.instance.get_default_policy ? offset = 1 : offset = 0
+        default_uuid = ProjectHanlon::Policies.instance.get_default_policy
         # if we're moving (instead of inserting) then the limit is one less than
         # if we're adding a new policy to the table
-        offset = offset + 1 if move_flag
+        if move_flag
+          default_uuid ? offset = 2 : offset = 1
+        else
+          default_uuid ? offset = 1 : offset = 0
+        end
         max_index = @p_table.count - offset
         if new_index > max_index
-          if offset == 1
+          if default_uuid
             raise ProjectHanlon::Error::Slice::InputError, "Line number '#{new_index}' is not valid; should be between 0 and #{max_index}"
           else
             raise ProjectHanlon::Error::Slice::InputError, "Cannot move policies below default policy; new line number must be between 0 and #{max_index}"
