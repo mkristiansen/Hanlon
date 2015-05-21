@@ -1,10 +1,10 @@
 # ProjectHanlon Policy Base class
 # Root abstract
-require 'policy/base'
+require 'policy/no_op'
 
 module ProjectHanlon
   module PolicyTemplate
-    class BootLocal < ProjectHanlon::PolicyTemplate::Base
+    class BootLocal < ProjectHanlon::PolicyTemplate::NoOp
       include(ProjectHanlon::Logging)
 
       # @param hash [Hash]

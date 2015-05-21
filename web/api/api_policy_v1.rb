@@ -9,6 +9,12 @@ module Hanlon
 
       class APIv1 < Grape::API
 
+        String.class_eval do
+          def to_boolean
+            self == 'true'
+          end
+        end
+
         version :v1, :using => :path, :vendor => "hanlon"
         format :json
         default_format :json
@@ -160,16 +166,36 @@ module Hanlon
           #     line_number       | String | The line number in the policy table      |         | Default: nil
           #     enabled           | String | A flag indicating if policy is enabled   |         | Default: "false"
           #     maximum           | String | The maximum_count for the policy         |         | Default: "0"
+          #     is_default        | String | A flag indicating if policy is default   |         | Default: "false"
+          #
+          # Note: if the 'is_default' flag is set to true, then the policy that is created will be
+          #       set up as the 'default policy' in the policy rules table (i.e. as a policy that matches
+          #       any node not matched by another policy). That means that the following conditions
+          #       must be met to successfully create this policy:
+          #         - there cannot already be a default policy defined in the policy rules table
+          #         - the request to create this policy cannot specify any of the following parameters:
+          #             * a 'tags' string (defining the tags to match against makes no sense
+          #               for a default policy)
+          #             * a 'broker_uuid' parameter (the default policy can only be declared
+          #               for policies that follow the 'discover_only' or 'boot_local' policy
+          #               templates, and policies that follow these templates do not hand off
+          #               the system to a broker (by design)
+          #             * a value for the 'enabled' flag (the default policy is assumed to
+          #               be enabled at all times)
+          #             * a maximum count via the 'maximum' parameter (the default policy is
+          #               assumed to match any nodes that don't match another policy in the
+          #               policy rules table, not just a limited number)
           desc "Create a new policy instance"
           params do
             requires "template", type: String, desc: "The policy template to use"
             requires "label", type: String, desc: "The new policy's name"
             requires "model_uuid", type: String, desc: "The model to use (by UUID)"
-            requires "tags", type: String, desc: "The tags to match against"
+            optional "tags", type: String, default: nil, desc: "The tags to match against"
             optional "broker_uuid", type: String, default: "none", desc: "The broker to use (by UUID)"
             optional "line_number", type: String, default: nil, desc: "Line number in the policy table for new policy"
             optional "enabled", type: String, default: "false", desc: "Enabled when created?"
             optional "maximum", type: String, default: "0", desc: "Max. number to match against"
+            optional "is_default", type: String, default: "false", desc: "Should policy be set as the default policy?"
           end
           post do
             # grab values for required parameters
@@ -179,55 +205,67 @@ module Hanlon
             broker_uuid = params["broker_uuid"] unless params["broker_uuid"] == "none"
             tags = params["tags"]
             line_number = params["line_number"]
+            # convert enabled parameter to a boolean (true or false) value
             enabled = params["enabled"]
+            raise ProjectHanlon::Error::Slice::InputError, "Value for enabled (#{enabled}) is not an Boolean" unless ['true','false'].include?(enabled)
+            enabled = enabled.to_boolean
+            # convert maximum parameter to an integer
             maximum = params["maximum"]
-            # check for errors in inputs
+            raise ProjectHanlon::Error::Slice::InvalidMaximumCount, "Policy maximum count must be a valid integer" unless maximum.to_i.to_s == maximum
+            maximum = maximum.to_i
+            raise ProjectHanlon::Error::Slice::InvalidMaximumCount, "Policy maximum count must be > 0" unless maximum >= 0
+            # convert is_default parameter to a boolean (true or false) value
+            is_default = params["is_default"]
+            raise ProjectHanlon::Error::Slice::InputError, "Value for is_default (#{is_default}) is not an Boolean" unless ['true','false'].include?(is_default)
+            is_default = is_default.to_boolean
+            # check for errors in the required inputs
             policy = SLICE_REF.new_object_from_template_name(POLICY_PREFIX, policy_template)
             raise ProjectHanlon::Error::Slice::InvalidPolicyTemplate, "Policy Template is not valid [#{policy_template}]" unless policy
             model = SLICE_REF.get_object("model_by_uuid", :model, model_uuid)
             raise ProjectHanlon::Error::Slice::InvalidUUID, "Invalid Model UUID [#{model_uuid}]" unless model && (model.class != Array || model.length > 0)
             raise ProjectHanlon::Error::Slice::InvalidModel, "Invalid Model Type [#{model.template}] != [#{policy.template}]" unless policy.template.to_s == model.template.to_s
+            # grab the list of policies (we'll use it later)
+            policy_rules = ProjectHanlon::Policies.instance
+            # then check for errors in the optional inputs; first to see if the policy
+            # we are creating is intended to be a new 'default policy' for the system
+            if is_default
+              # if get here, ensure that there is not already default policy already defined in the system
+              default_policy_uuid = policy_rules.get_default_policy
+              raise ProjectHanlon::Error::Slice::InputError, "Cannot create a new default policy, a default policy is already defined (#{default_policy_uuid})" if default_policy_uuid
+              # and that the policy being created here can be used as a default policy (i.e. that it is a
+              # 'boot_local' or 'discover_only' policy)
+              raise ProjectHanlon::Error::Slice::InputError, "Only no-op ('boot_local' or 'discover_only') policies can be used as default policies)" unless ['boot_local', 'discover_only'].include?(policy_template)
+              # if no default policy was found in the system, then check for input errors in the request
+              raise ProjectHanlon::Error::Slice::InputError, "Cannot define a broker instance when creating a default policy (only 'boot_local' and 'discover_only' policies can be default policies)" if broker_uuid
+              raise ProjectHanlon::Error::Slice::InputError, "Cannot define a line number when creating a default policy (assumed to always be last)" if line_number
+              raise ProjectHanlon::Error::Slice::InputError, "Cannot create a disabled default policy (is_default: #{is_default}, enabled: #{enabled})" unless enabled
+              raise ProjectHanlon::Error::Slice::InputError, "Cannot define a maximum number of bindings for a default policy (assumed to match any node not matched by another policy)" if maximum > 0
+            end
             if broker_uuid
-              raise ProjectHanlon::Error::Slice::InputError, "Cannot add a broker to a 'noop' policy" if ["boot_local", "discover_only"].include?(policy_template)
+              raise ProjectHanlon::Error::Slice::InputError, "Cannot add a broker to a no-op policy" if ['boot_local', 'discover_only'].include?(policy_template)
               broker = SLICE_REF.get_object("broker_by_uuid", :broker, broker_uuid)
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Invalid Broker UUID [#{broker_uuid}]" unless (broker && (broker.class != Array || broker.length > 0)) || broker_uuid == "none"
             end
             line_number = line_number.strip if line_number
             raise ProjectHanlon::Error::Slice::InputError, "Index '#{line_number}' is not an integer" if line_number && !/^[+-]?\d+$/.match(line_number)
-            # split the tags and determine how they should be matched to a node for this policy (either an 'and' or an 'or')
-            tags, match_using = split_tags(tags)
-            raise ProjectHanlon::Error::Slice::MissingTags, "Must provide at least one tag ['tag(,tag)']" unless tags.count > 0
-            raise ProjectHanlon::Error::Slice::InvalidMaximumCount, "Policy maximum count must be a valid integer" unless maximum.to_i.to_s == maximum
-            raise ProjectHanlon::Error::Slice::InvalidMaximumCount, "Policy maximum count must be > 0" unless maximum.to_i >= 0
+            line_number = line_number.to_i if line_number
+            # split the tags that were passed in and determine how they should be matched to a node for this policy (either an 'and' or an 'or')
+            tags, match_using = split_tags(tags) if tags
+            raise ProjectHanlon::Error::Slice::MissingTags, "Must provide at least one tag ['tag(,tag)']" unless is_default || (tags && tags.count > 0)
             # Flesh out the policy
             policy.label         = label
             policy.model         = model
             policy.broker        = broker
-            policy.tags          = tags
+            policy.tags          = tags if tags
             policy.match_using   = match_using if match_using
             policy.enabled       = enabled
             policy.is_template   = false
             policy.maximum_count = maximum
+            policy.is_default    = is_default if policy.is_a?(ProjectHanlon::PolicyTemplate::NoOp)
             # Add policy
-            policy_rules         = ProjectHanlon::Policies.instance
-            raise(ProjectHanlon::Error::Slice::CouldNotCreate, "Could not create Policy") unless policy_rules.add(policy)
-            # if a line number was provided, move the policy to that position in
-            # the policy rules table
-            if line_number
-              begin
-                policy_rules.move_policy_to_idx(policy.uuid, line_number.to_i)
-              rescue ProjectHanlon::Error::Slice::InputError => e
-                # if got here, could not create policy at stated position, so remove
-                # the policy we already created from the system and rethrow the error
-                get_data_ref.delete_object(policy)
-                raise e
-              end
-              policy.line_number = line_number
-            else
-              # Issue 125 Fix - add policy serial number & bind_counter to rest api
-              policy.line_number = policy.row_number
-            end
+            raise(ProjectHanlon::Error::Slice::CouldNotCreate, "Could not create Policy") unless policy_rules.add(policy, line_number)
             # Issue 125 Fix - add policy serial number & bind_counter to rest api
+            policy.line_number = policy.row_number
             policy.bind_counter = policy.current_count
             slice_success_object(SLICE_REF, :create_policy, policy, :success_type => :created)
           end     # end POST /policy
@@ -369,6 +407,9 @@ module Hanlon
               policy_uuid = params[:uuid]
               policy = SLICE_REF.get_object("policy_with_uuid", :policy, policy_uuid)
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Invalid Policy UUID [#{policy_uuid}]" unless policy && (policy.class != Array || policy.length > 0)
+              # check to ensure we aren't trying to update the default policy
+              is_default = policy.is_default if policy.is_a?(ProjectHanlon::PolicyTemplate::NoOp)
+              raise ProjectHanlon::Error::Slice::InputError, "Policy UUID [#{policy_uuid}] is the 'default policy' for the system, which cannot be updated" if is_default
 
               if tags
                 tags, match_using = split_tags(tags)
@@ -382,7 +423,7 @@ module Hanlon
               end
               broker = nil
               if broker_uuid
-                raise ProjectHanlon::Error::Slice::InputError, "Cannot add a broker to a 'noop' policy" if [:boot_local, :discover_only].include?(policy.template)
+                raise ProjectHanlon::Error::Slice::InputError, "Cannot add a broker to a no-op policy" if [:boot_local, :discover_only].include?(policy.template)
                 broker = SLICE_REF.get_object("broker_by_uuid", :broker, broker_uuid)
                 raise ProjectHanlon::Error::Slice::InvalidUUID, "Invalid Broker UUID [#{broker_uuid}]" unless (broker && (broker.class != Array || broker.length > 0)) || broker_uuid == "none"
               end

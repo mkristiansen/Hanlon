@@ -108,7 +108,7 @@ module ProjectHanlon
                   :long_form   => '--tags TAG{,TAG,TAG}',
                   :description => 'Policy tags. Comma delimited.',
                   :uuid_is     => 'not_allowed',
-                  :required    => true
+                  :required    => false
                 },
                 { :name        => :broker_uuid,
                   :default     => 'none',
@@ -131,6 +131,14 @@ module ProjectHanlon
                   :short_form  => '-e',
                   :long_form   => '--enabled ENABLED_FLAG',
                   :description => 'Should policy be enabled (true|false) [default: false]?',
+                  :uuid_is     => 'not_allowed',
+                  :required    => false
+                },
+                { :name        => :is_default,
+                  :default     => false,
+                  :short_form  => '-d',
+                  :long_form   => '--default',
+                  :description => 'Set the policy as the system default policy on creation.',
                   :uuid_is     => 'not_allowed',
                   :required    => false
                 },
@@ -263,9 +271,16 @@ module ProjectHanlon
         # option_items hash must be an exclusive choice)
         check_option_usage(option_items, options, includes_uuid, false)
         # assign default values for (missing) optional parameters
-        options[:maximum] = "0" if !options[:maximum]
-        options[:broker_uuid] = "none" if !options[:broker_uuid]
-        options[:enabled] = "false" if !options[:enabled]
+        options[:maximum] = "0" unless options[:maximum]
+        options[:broker_uuid] = "none" unless options[:broker_uuid]
+        options[:default] = false unless options[:default]
+        # how we set the default value for the 'enabled' option depends
+        # on whether the policy we're creating is a default policy or not
+        if options[:is_default]
+          options[:enabled] = true
+        else
+          options[:enabled] = false unless options[:enabled]
+        end
         # setup the POST (to create the requested policy) and return the results
         uri = URI.parse @uri_string
         json_data = {
@@ -276,7 +291,8 @@ module ProjectHanlon
             "broker_uuid" => options[:broker_uuid],
             "line_number" => options[:line_number],
             "enabled" => options[:enabled],
-            "maximum" => options[:maximum]
+            "maximum" => options[:maximum],
+            "is_default" => options[:is_default]
         }.to_json
         result = hnl_http_post_json_data(uri, json_data)
         print_object_array(hash_array_to_obj_array([result]), "Policy Created:")
