@@ -72,8 +72,8 @@ module Hanlon
 
           def get_power_status(ipmi_args, node)
             # extract the username and password from the input ipmi_args hash
-            ipmi_username = ipmi_args[:ipmi_username]
-            ipmi_password = ipmi_args[:ipmi_password]
+            ipmi_username = ipmi_args['ipmi_username']
+            ipmi_password = ipmi_args['ipmi_password']
             # attempt to get the IP address of the BMC from the facts reported back to Hanlon by the Microkernel
             ipmi_ip_address = node.attributes_hash['mk_ipmi_IP_Address']
             # if we didn't find that IP address in the list of facts for this node, then throw
@@ -206,7 +206,7 @@ module Hanlon
               uuid = params[:hw_id].upcase if params[:hw_id]
               node = ProjectHanlon::Engine.instance.lookup_node_by_hw_id({:uuid => uuid, :mac_id => []})
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Node with Hardware ID: [#{uuid}]" unless node
-              ipmi_args = params.select { |key| [:ipmi_username, :ipmi_password].include?(key) }
+              ipmi_args = params.select { |key| ['ipmi_username', 'ipmi_password'].include?(key) }
               get_power_status(ipmi_args, node)
             end     # end GET /node/power
 
@@ -441,7 +441,8 @@ module Hanlon
                 node_uuid = params[:uuid]
                 node = SLICE_REF.get_object("node_with_uuid", :node, node_uuid)
                 raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Node with UUID: [#{node_uuid}]" unless node && (node.class != Array || node.length > 0)
-                get_power_status(params, node)
+                ipmi_args = params.select { |key| ['ipmi_username', 'ipmi_password'].include?(key) }
+                get_power_status(ipmi_args, node)
               end     # end GET /node/{uuid}/power
 
               # POST /node/{uuid}/power
