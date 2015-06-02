@@ -31,7 +31,6 @@ RUN gem install bundle \
 	&& cd /home/hanlon \
 	&& bundle install --system
 
-ENV TEST_MODE true
 ENV LANG en_US.UTF-8
 ENV WIMLIB_IMAGEX_USE_UTF8 true
 ENV HANLON_WEB_PATH /home/hanlon/web
