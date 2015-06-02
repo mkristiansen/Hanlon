@@ -43,7 +43,8 @@ module ProjectHanlon
         end
       elsif options[:json_defaults]
         default_params = begin
-          JSON.parse(options[:json_defaults])
+          hash = JSON.parse(options[:json_defaults])
+          hash.each { |k, v| hash[k] = v.gsub(/^@/,'').to_sym if /^@/.match(v) }
         rescue Exception => e
           puts "Could not parse defaults JSON string '#{options[:json_defaults]}': #{e.message}"
           exit 4

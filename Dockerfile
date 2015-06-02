@@ -31,12 +31,17 @@ RUN gem install bundle \
 	&& cd /home/hanlon \
 	&& bundle install --system
 
-# Hanlon by default runs at TCP 8026
-EXPOSE 8026
-
-ENV TEST_MODE true
 ENV LANG en_US.UTF-8
 ENV WIMLIB_IMAGEX_USE_UTF8 true
+ENV HANLON_WEB_PATH /home/hanlon/web
 
-WORKDIR /home/hanlon/web
-CMD (cd /home/hanlon && ./hanlon_init -j '{"hanlon_static_path": "'$HANLON_STATIC_PATH'", "hanlon_subnets": "'$HANLON_SUBNETS'", "hanlon_server": "'$DOCKER_HOST'", "persist_host": "'$MONGO_PORT_27017_TCP_ADDR'"}' ) && ./run-puma.sh
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+WORKDIR /home/hanlon
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
+
+# Hanlon by default runs at TCP 8026
+EXPOSE 8026
+CMD []
