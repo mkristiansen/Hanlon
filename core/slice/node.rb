@@ -146,6 +146,14 @@ module ProjectHanlon
                   :description => 'The IPMI password',
                   :uuid_is     => 'required',
                   :required    => false
+                },
+                { :name        => :ipmi_options,
+                  :default     => nil,
+                  :short_form  => '-o',
+                  :long_form   => '--options JSON_STRING',
+                  :description => 'The IPMI options',
+                  :uuid_is     => 'required',
+                  :required    => false
                 }
             ],
             :update => [
@@ -178,6 +186,14 @@ module ProjectHanlon
                   :short_form  => '-p',
                   :long_form   => '--password PASSWORD',
                   :description => 'The IPMI password',
+                  :uuid_is     => 'not_allowed',
+                  :required    => false
+                },
+                { :name        => :ipmi_options,
+                  :default     => nil,
+                  :short_form  => '-o',
+                  :long_form   => '--options JSON_STRING',
+                  :description => 'The IPMI options',
                   :uuid_is     => 'not_allowed',
                   :required    => false
                 }
@@ -335,12 +351,14 @@ module ProjectHanlon
         hw_id = options[:hw_id]
         ipmi_username = options[:ipmi_username]
         ipmi_password = options[:ipmi_password]
+        ipmi_options = options[:ipmi_options]
         raise ProjectHanlon::Error::Slice::InputError, "Usage Error: cannot use the 'field' and 'bmc' options simultaneously" if bmc_power_cmd && selected_option
         if bmc_power_cmd
           uri_string << '/power'
           add_field_to_query_string(uri_string, 'ipmi_username', ipmi_username) if ipmi_username && !ipmi_username.empty?
           add_field_to_query_string(uri_string, 'ipmi_password', ipmi_password) if ipmi_password && !ipmi_password.empty?
           add_field_to_query_string(uri_string, 'hw_id', hw_id) if hw_id && !hw_id.empty?
+          add_field_to_query_string(uri_string, 'ipmi_options', URI.encode(ipmi_options)) if ipmi_options && !ipmi_options.empty?
           uri = URI.parse(uri_string)
           # get the current power state of the node using that URI
           result = hnl_http_get(uri)
@@ -374,6 +392,7 @@ module ProjectHanlon
         power_cmd = options[:bmc]
         ipmi_username = options[:ipmi_username]
         ipmi_password = options[:ipmi_password]
+        ipmi_options = options[:ipmi_options]
         hw_id = options[:hw_id]
         # construct our initial uri_string using the input node_uuid (or not, if a hw_id was specified
         # instead of a node_uuid)
@@ -387,6 +406,7 @@ module ProjectHanlon
             body_hash["ipmi_username"] = ipmi_username if ipmi_username && !ipmi_username.empty?
             body_hash["ipmi_password"] = ipmi_password if ipmi_password && !ipmi_password.empty?
             body_hash["hw_id"] = hw_id if hw_id && !hw_id.empty?
+            body_hash["ipmi_options"] =  ipmi_options if ipmi_options && !ipmi_options.empty?
             json_data = body_hash.to_json
             uri = URI.parse(uri_string)
             result = hnl_http_post_json_data(uri, json_data)
