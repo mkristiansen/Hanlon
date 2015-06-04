@@ -219,7 +219,7 @@ module Hanlon
               ipmi_args = params.select { |key| ['ipmi_username', 'ipmi_password'].include?(key) }
               ipmi_option_string = params[:ipmi_options]
               begin
-                options_hash = JSON.parse(ipmi_option_string)
+                options_hash = JSON.parse(ipmi_option_string, {:symbolize_names => true})
               rescue JSON::ParserError => e
                 raise ProjectHanlon::Error::Slice::InputError, "IPMI Options String '#{ipmi_option_string}' is not a valid JSON String"
               end
@@ -252,7 +252,7 @@ module Hanlon
               ipmi_args = params.select { |key| ['power_command', 'ipmi_username', 'ipmi_password'].include?(key) }
               ipmi_option_string = params[:ipmi_options]
               begin
-                options_hash = JSON.parse(ipmi_option_string)
+                options_hash = JSON.parse(ipmi_option_string, {:symbolize_names => true} )
               rescue JSON::ParserError => e
                 raise ProjectHanlon::Error::Slice::InputError, "IPMI Options String '#{ipmi_option_string}' is not a valid JSON String"
               end
@@ -472,7 +472,7 @@ module Hanlon
                 ipmi_args = params.select { |key| ['ipmi_username', 'ipmi_password'].include?(key) }
                 ipmi_option_string = params[:ipmi_options]
                 begin
-                  options_hash = JSON.parse(ipmi_option_string)
+                  options_hash = JSON.parse(ipmi_option_string, {:symbolize_names => true})
                 rescue JSON::ParserError => e
                   raise ProjectHanlon::Error::Slice::InputError, "IPMI Options String '#{ipmi_option_string}' is not a valid JSON String"
                 end
@@ -504,7 +504,7 @@ module Hanlon
                 raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Node with UUID: [#{node_uuid}]" unless node && (node.class != Array || node.length > 0)
                 ipmi_option_string = params[:ipmi_options]
                 begin
-                  options_hash = JSON.parse(ipmi_option_string)
+                  options_hash = JSON.parse(ipmi_option_string, {:symbolize_names => true})
                 rescue JSON::ParserError => e
                   raise ProjectHanlon::Error::Slice::InputError, "IPMI Options String '#{ipmi_option_string}' is not a valid JSON String"
                 end
