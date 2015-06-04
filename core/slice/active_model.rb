@@ -186,7 +186,7 @@ module ProjectHanlon
         result = hnl_http_get(uri)
         unless result.blank?
           # convert it to a sorted array of objects (from an array of hashes)
-          sort_fieldname = 'node_uuid'
+          sort_fieldname = 'label'
           result = hash_array_to_obj_array(expand_response_with_uris(result), sort_fieldname)
         end
         # and print the result
