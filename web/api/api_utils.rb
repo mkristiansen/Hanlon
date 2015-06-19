@@ -33,7 +33,7 @@ module Hanlon
         # in the list of local IP addresses accessible through the 'Socket.ip_address_list'
         # method (if so, we consider the request to be a local request)
         remote_addr == ProjectHanlon.config.hanlon_server ||
-            Socket.ip_address_list.map{|hash_map| val.ip_address}.include?(remote_addr)
+            Socket.ip_address_list.map{|val| val.ip_address}.include?(remote_addr)
       end
       module_function :request_from_hanlon_server?
 
@@ -76,8 +76,9 @@ module Hanlon
 
       # used to obtain the value from the input response object that corresponds
       # to the input fieldname; if a matching field in the response object cannot
-      # be found, then an error will be thrown, otherwise the corresponding value
-      # from the response object will be returned.
+      # be found, then a nil will be returned (and the field will be ignored
+      # for purposes of matching), otherwise the corresponding value from the
+      # response object will be returned.
       #
       # note that the fieldname can take one of two forms, either a 'dot separated'
       # form or a 'string value' form
