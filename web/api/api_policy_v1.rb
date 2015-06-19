@@ -95,6 +95,10 @@ module Hanlon
             Hanlon::WebService::Utils::hnl_slice_success_object(slice, command, response, options)
           end
 
+          def filter_hnl_response(response, filter_str)
+            Hanlon::WebService::Utils::filter_hnl_response(response, filter_str)
+          end
+
           def make_callback(active_model, callback_namespace, command_array)
             callback = active_model.model.callback[callback_namespace]
             raise ProjectHanlon::Error::Slice::NoCallbackFound, "Missing callback" unless callback
@@ -144,15 +148,26 @@ module Hanlon
 
           # GET /policy
           # Query for defined policies.
+          #   parameters:
+          #     optional:
+          #       :filter_str    | String   | A string to use to filter the results  |
           desc "Retrieve a list of all policy instances"
+          params do
+            optional :filter_str, type: String, desc: "String used to filter results"
+          end
           get do
+            filter_str = params[:filter_str]
             policies = SLICE_REF.get_object("policies", :policy)
             # Issue 125 Fix - add policy serial number & bind_counter to rest api
             policies.each do |policy|
               policy.line_number = policy.row_number
               policy.bind_counter = policy.current_count
             end
-            slice_success_object(SLICE_REF, :get_all_policies, policies, :success_type => :generic)
+            success_object = slice_success_object(SLICE_REF, :get_all_policies, policies, :success_type => :generic)
+            # if a filter_str was provided, apply it here
+            success_object['response'] = filter_hnl_response(success_object['response'], filter_str) if filter_str
+            # and return the resulting success_object
+            success_object
           end     # end GET /policy
 
           # POST /policy

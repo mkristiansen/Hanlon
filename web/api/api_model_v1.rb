@@ -80,16 +80,31 @@ module Hanlon
             Hanlon::WebService::Utils::hnl_slice_success_object(slice, command, response, options)
           end
 
+          def filter_hnl_response(response, filter_str)
+            Hanlon::WebService::Utils::filter_hnl_response(response, filter_str)
+          end
+
         end
 
         resource :model do
 
           # GET /model
           # Query for defined models.
+          #   parameters:
+          #     optional:
+          #       :filter_str    | String   | A string to use to filter the results  |
           desc "Retrieve a list of all model instances"
+          params do
+            optional :filter_str, type: String, desc: "String used to filter results"
+          end
           get do
+            filter_str = params[:filter_str]
             models = SLICE_REF.get_object("models", :model)
-            slice_success_object(SLICE_REF, :get_all_models, models, :success_type => :generic)
+            success_object = slice_success_object(SLICE_REF, :get_all_models, models, :success_type => :generic)
+            # if a filter_str was provided, apply it here
+            success_object['response'] = filter_hnl_response(success_object['response'], filter_str) if filter_str
+            # and return the resulting success_object
+            success_object
           end     # end GET /model
 
           # POST /model

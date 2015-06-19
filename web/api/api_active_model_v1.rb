@@ -114,6 +114,10 @@ module Hanlon
             Hanlon::WebService::Utils::hnl_slice_success_object(slice, command, response, options)
           end
 
+          def filter_hnl_response(response, filter_str)
+            Hanlon::WebService::Utils::filter_hnl_response(response, filter_str)
+          end
+
         end
 
         resource :active_model do
@@ -123,6 +127,20 @@ module Hanlon
           # for the active_model bound to the specified node instead; or if a 'policy' is provided, show the
           # list of active_models created by that policy).
           #
+          #   parameters:
+          #     optional:
+          #       :node_uuid     | String   | The (Hanlon-assigned) UUID of the bound node.    |
+          #       :policy        | String   | The Hardware ID (SMBIOS UUID) of the bound node. |
+          #       :policy        | String   | The Policy UUID to use as a filter               |
+          #       :filter_str    | String   | A string to use to filter the results            |
+          #
+          # Note, the optional 'filter_string' argument shown here must take the form of
+          #   a URI-encoded string containing one or more 'name=value' pairs separated by
+          #   plus (+) characters. These values will be used to filter the results so that
+          #   only objects with the parameter named 'name' having a value that matches 'value'
+          #   will be returned in the result.  If the named parameter does not exist in
+          #   the list of parameters contained in the object, then an error is thrown.
+          #
           # Note that although the :node_uuid, :hw_id, and :policy are all shown as optional, there can be
           # only one (or none) of these specified in a valid request to this endpoint
           desc "Retrieve a list of all active_model instances"
@@ -130,15 +148,20 @@ module Hanlon
             optional :node_uuid, type: String, desc: "The (Hanlon-assigned) UUID of the bound node."
             optional :hw_id, type: String, desc: "The Hardware ID (SMBIOS UUID) of the bound node."
             optional :policy, type: String, desc: "The Policy UUID to use as a filter"
+            optional :filter_str, type: String, desc: "String used to filter results"
           end
           get do
             node_uuid = params[:node_uuid] if params[:node_uuid]
             hw_id = params[:hw_id].upcase if params[:hw_id]
             policy_uuid = params[:policy] if params[:policy]
+            filter_str = params[:filter_str]
             # count the number of non-nil optional inputs received; there
             # should only be one in a valid request
             num_sel_params = [node_uuid, hw_id, policy_uuid].select { |val| val }.size
             raise ProjectHanlon::Error::Slice::InvalidCommand, "only one node selection parameter ('policy_uuid', 'hw_id' or 'node_uuid') may be used" if num_sel_params > 1
+            # if the node_uuid or hw_id was specified, then it doesn't make sense to include a filter_str
+            # (since the response will only include one node)
+            raise ProjectHanlon::Error::Slice::InputError, "Usage Error: a Filter String cannot be specified when a Hardware ID or Node UUID is provided" if params[:filter_str] && (params[:node_uuid] || params[:hw_id])
             # if either a node_uuid or a hw_id was provided, return the details for the active_model bound to the node
             # with that node_id, otherwise just return the list of all active_models
             active_models = nil
@@ -171,7 +194,11 @@ module Hanlon
             active_models = SLICE_REF.get_object("active_models", :active) unless active_models
             # if a node selection array was defined, use it to filter the list of nodes returned
             active_models.select! { |active_model| active_model_selection_array.include?(active_model.uuid) } unless active_model_selection_array.empty?
-            slice_success_object(SLICE_REF, :get_all_active_models, active_models, :success_type => :generic)
+            success_object =  slice_success_object(SLICE_REF, :get_all_active_models, active_models, :success_type => :generic)
+            # if a filter_str was provided, apply it here
+            success_object['response'] = filter_hnl_response(success_object['response'], filter_str) if filter_str
+            # and return the resulting success_object
+            success_object
           end     # end GET /active_model
 
           # DELETE /active_model

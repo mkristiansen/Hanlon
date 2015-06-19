@@ -75,16 +75,31 @@ module Hanlon
             Hanlon::WebService::Utils::hnl_slice_success_object(slice, command, response, options)
           end
 
+          def filter_hnl_response(response, filter_str)
+            Hanlon::WebService::Utils::filter_hnl_response(response, filter_str)
+          end
+
         end
 
         resource :broker do
 
           # GET /broker
           # Query for defined brokers.
+          #   parameters:
+          #     optional:
+          #       :filter_str    | String   | A string to use to filter the results  |
           desc "Retrieve a list of all broker instances"
+          params do
+            optional :filter_str, type: String, desc: "String used to filter results"
+          end
           get do
+            filter_str = params[:filter_str]
             brokers = SLICE_REF.get_object("broker_instances", :broker)
-            slice_success_object(SLICE_REF, :get_all_brokers, brokers, :success_type => :generic)
+            success_object = slice_success_object(SLICE_REF, :get_all_brokers, brokers, :success_type => :generic)
+            # if a filter_str was provided, apply it here
+            success_object['response'] = filter_hnl_response(success_object['response'], filter_str) if filter_str
+            # and return the resulting success_object
+            success_object
           end     # end GET /broker
 
           # POST /broker

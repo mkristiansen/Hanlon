@@ -86,6 +86,10 @@ module Hanlon
             Hanlon::WebService::Utils::hnl_slice_success_object(slice, command, response, options)
           end
 
+          def filter_hnl_response(response, filter_str)
+            Hanlon::WebService::Utils::filter_hnl_response(response, filter_str)
+          end
+
           # get a list of the sub-images in a WIM image
           def get_wim_subimages(image, wim_path)
             # first, define the keys we want to select from the output of the
@@ -165,6 +169,9 @@ module Hanlon
 
           # GET /image
           # Query for images.
+          #   parameters:
+          #     optional:
+          #       :filter_str    | String   | A string to use to filter the results  |
           desc "Retrieve a list of all image instances"
           before do
             # only test if directly accessing the /config resource
@@ -177,8 +184,10 @@ module Hanlon
           end
           params do
             optional "hidden", type: Boolean, desc: "Return all images (including hidden images)"
+            optional :filter_str, type: String, desc: "String used to filter results"
           end
           get do
+            filter_str = params[:filter_str]
             images = SLICE_REF.get_object("images", :images)
             # reject all hidden images unless the hidden flag was set to true
             images.reject! { |image| image.hidden } unless params[:hidden]
@@ -189,7 +198,11 @@ module Hanlon
               image.set_lcl_image_path(ProjectHanlon.config.image_path)
               image.image_status, image.image_status_message = image.verify(image.image_path)
             end
-            slice_success_object(SLICE_REF, :get_all_images, images, :success_type => :generic)
+            success_object = slice_success_object(SLICE_REF, :get_all_images, images, :success_type => :generic)
+            # if a filter_str was provided, apply it here
+            success_object['response'] = filter_hnl_response(success_object['response'], filter_str) if filter_str
+            # and return the resulting success_object
+            success_object
           end     # end GET /image
 
           # POST /image

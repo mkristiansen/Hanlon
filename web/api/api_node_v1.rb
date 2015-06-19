@@ -70,6 +70,10 @@ module Hanlon
             Hanlon::WebService::Utils::hnl_slice_success_object(slice, command, response, options)
           end
 
+          def filter_hnl_response(response, filter_str)
+            Hanlon::WebService::Utils::filter_hnl_response(response, filter_str)
+          end
+
           def get_power_status(ipmi_args, node, options_hash = { })
             # extract the username and password from the input ipmi_args hash
             ipmi_username = ipmi_args['ipmi_username']
@@ -163,15 +167,30 @@ module Hanlon
 
           # GET /node
           # Query registered nodes.
+          #   parameters:
+          #     optional:
+          #       :uuid          | String   | The Hardware ID (SMBIOS UUID) of the node |
+          #       :policy        | String   | The Policy UUID to use as a filter        |
+          #       :filter_str    | String   | A string to use to filter the results     |
+          #
+          # Note, the optional 'filter_string' argument shown here must take the form of
+          #   a URI-encoded string containing one or more 'name=value' pairs separated by
+          #   plus (+) characters. These values will be used to filter the results so that
+          #   only objects with the parameter named 'name' having a value that matches 'value'
+          #   will be returned in the result.  If the named parameter does not exist in
+          #   the list of parameters contained in the object, then an error is thrown.
           desc "Retrieve a list of all node instances"
           params do
             optional :uuid, type: String, desc: "The Hardware ID (SMBIOS UUID) of the node."
             optional :policy, type: String, desc: "The Policy UUID to use as a filter"
+            optional :filter_str, type: String, desc: "String used to filter results"
           end
           get do
             uuid = params[:uuid].upcase if params[:uuid]
             policy_uuid = params[:policy]
+            filter_str = params[:filter_str]
             raise ProjectHanlon::Error::Slice::InputError, "Usage Error: either a Hardware ID or a Policy UUID can be provided as a filter, but not both" if params[:uuid] && params[:policy]
+            raise ProjectHanlon::Error::Slice::InputError, "Usage Error: a Hardware ID cannot be provided when a Filter String is specified" if params[:uuid] && params[:filter_str]
             node_selection_array = []
             if uuid
               # if a Hardware ID was supplied, then return the node with that Hardware ID
@@ -192,7 +211,11 @@ module Hanlon
             nodes = SLICE_REF.get_object("nodes", :node)
             # if a node selection array was defined, use it to filter the list of nodes returned
             nodes.select! { |node| node_selection_array.include?(node.uuid) } unless node_selection_array.empty?
-            slice_success_object(SLICE_REF, :get_all_nodes, nodes, :success_type => :generic)
+            success_object = slice_success_object(SLICE_REF, :get_all_nodes, nodes, :success_type => :generic)
+            # if a filter_str was provided, apply it here
+            success_object['response'] = filter_hnl_response(success_object['response'], filter_str) if filter_str
+            # and return the resulting success_object
+            success_object
           end       # end GET /node
 
           resource :power do
