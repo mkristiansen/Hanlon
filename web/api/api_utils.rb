@@ -157,14 +157,16 @@ module Hanlon
         # throw an error if the comparison_value contains a set of '&' or '|' separated substrings
         # but also contains the string 'regex:' (we don't support logical AND or logical OR matching
         # via substrings that are, themselves, regular expressions)
-        raise ProjectHanlon::Error::Slice::InputError, "Illegal comparison_value; the declared value contains regular expressions as substrings" if comparison_regex && (and_sep_substrings || or_sep_substrings)
+        regex_in_and_substrings = and_sep_substrings.select { |val| /^regex\:/.match(val) }.size > 0 if and_sep_substrings
+        regex_in_or_substrings = or_sep_substrings.select { |val| /^regex\:/.match(val) }.size > 0 if or_sep_substrings
+        raise ProjectHanlon::Error::Slice::InputError, "Illegal comparison_value; the declared value contains regular expressions as substrings" if regex_in_and_substrings || regex_in_or_substrings
         # throw an error if we're using an '&' separated set of substrings for our comparison_value
         # but the object_value is not an array (the '&' separated substring construct only makes
         # sense in the case of array comparisons)
         raise ProjectHanlon::Error::Slice::InputError, "Illegal comparison_value; '&' separated strings cannot be compared to a non-Array object" if and_sep_substrings && !(object_value.is_a?(Array))
         # Ensure that the elements of the object_value are converted to a string (if the
         # object_value is an Array)
-        object_value.map { |val| val.to_s } if object_value.is_a?(Array)
+        object_value.map! { |val| val.to_s } if object_value.is_a?(Array)
         if or_sep_substrings
           # if we found a set of strings separated by '|' characters, then check for
           # a match; in this case the rules for a match depend on whether the
@@ -252,6 +254,7 @@ module Hanlon
             # that are a collection of objects (which will be a collection
             # of objects containing URIs that refer to specific instances
             # of the object in the input collection)
+            raise ProjectHanlon::Error::Slice::InputError, "Can only filter response arrays that contain URIs that reference response objects"
           end
         }
         # determine which objects match based on the comparison hash constructed
