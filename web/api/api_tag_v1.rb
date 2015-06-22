@@ -72,6 +72,10 @@ module Hanlon
             Hanlon::WebService::Utils::hnl_slice_success_object(slice, command, response, options)
           end
 
+          def filter_hnl_response(response, filter_str)
+            Hanlon::WebService::Utils::filter_hnl_response(response, filter_str)
+          end
+
           def find_matcher_for_tag(tag_uuid, matcher_uuid)
             found_matcher = []
             tag = SLICE_REF.get_object("tag_with_uuid", :tag, tag_uuid)
@@ -100,10 +104,21 @@ module Hanlon
 
           # GET /tag
           # Query for defined tags.
+          #   parameters:
+          #     optional:
+          #       :filter_str    | String   | A string to use to filter the results  |
           desc "Retrieve a list of all tags"
+          params do
+            optional :filter_str, type: String, desc: "String used to filter results"
+          end
           get do
+            filter_str = params[:filter_str]
             tagrules = SLICE_REF.get_object("tagrules", :tag)
-            slice_success_object(SLICE_REF, :get_all_tagrules, tagrules, :success_type => :generic)
+            success_object = slice_success_object(SLICE_REF, :get_all_tagrules, tagrules, :success_type => :generic)
+            # if a filter_str was provided, apply it here
+            success_object['response'] = filter_hnl_response(success_object['response'], filter_str) if filter_str
+            # and return the resulting success_object
+            success_object
           end     # end GET /tag
 
           # POST /tag
@@ -208,15 +223,26 @@ module Hanlon
 
               # GET /tag/{uuid}/matcher
               # Query for defined tag matchers (for a given tag).
+              #   parameters:
+              #     required:
+              #       :uuid          | String   | The UUID of the tag to retrieve the matchers for  |
+              #     optional:
+              #       :filter_str    | String   | A string to use to filter the results             |
               desc "Retrieve a list of all tag matchers (for a given tag)"
               params do
                 requires :uuid, type: String, desc: "The tag's UUID"
+                optional :filter_str, type: String, desc: "String used to filter results"
               end
               get do
                 tag_uuid = params[:uuid]
+                filter_str = params[:filter_str]
                 matchers, tagrule = get_matchers(tag_uuid)
                 raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Tag with UUID: [#{tag_uuid}]" unless tagrule && (tagrule.class != Array || tagrule.length > 0)
-                slice_success_object(SLICE_REF, :get_all_matchers, matchers, :success_type => :generic)
+                success_object = slice_success_object(SLICE_REF, :get_all_matchers, matchers, :success_type => :generic)
+                # if a filter_str was provided, apply it here
+                success_object['response'] = filter_hnl_response(success_object['response'], filter_str) if filter_str
+                # and return the resulting success_object
+                success_object
               end     # end GET /tag/{uuid}/matcher
 
               # POST /tag/{uuid}/matcher
