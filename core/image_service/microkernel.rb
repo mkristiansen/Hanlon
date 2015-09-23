@@ -6,14 +6,13 @@ module ProjectHanlon
   module ImageService
     # Image construct for Microkernel files
     class MicroKernel < ProjectHanlon::ImageService::Base
+      attr_accessor :docker_image
+      attr_accessor :ssh_key
       attr_accessor :mk_version
-      attr_accessor :kernel
-      attr_accessor :initrd
       attr_accessor :kernel_hash
       attr_accessor :initrd_hash
-      attr_accessor :hash_description
-      attr_accessor :iso_build_time
-      attr_accessor :iso_version
+      attr_accessor :image_build_time
+      attr_accessor :os_version
 
       def initialize(hash)
         super(hash)
@@ -23,7 +22,7 @@ module ProjectHanlon
         from_hash(hash) unless hash == nil
       end
 
-      def add(src_image_path, lcl_image_path, extra = {})
+      def add(src_image_path, lcl_image_path, extra)
         # Add the iso to the image svc storage
 
         begin
@@ -34,6 +33,17 @@ module ProjectHanlon
               logger.error result_string
               return [false, result_string]
             end
+            # save Microkernel version (passed in via the body of the RESTful POST)
+            @os_version = extra[:os_version]
+            # fill in the kernel and initrd hash values (if these files didn't
+            # exist, would not have gotten through the 'verify' step, above)
+            @kernel_hash = Digest::SHA256.hexdigest(File.read(kernel_path))
+            @initrd_hash = Digest::SHA256.hexdigest(File.read(initrd_path))
+            # add docker image to Microkernel image and extract SSH public key from file
+            @docker_image = add_docker_to_mk_image(extra[:docker_image])
+            @ssh_key = extract_pub_key(extra[:ssh_keyfile]) if extra[:ssh_keyfile] && !extra[:ssh_keyfile].empty?
+            # retrieve modification time for docker image and add it to the object
+            @image_build_time = File.mtime(extra[:docker_image]).utc.to_i
           end
           resp
         rescue => e
@@ -50,91 +60,30 @@ module ProjectHanlon
         unless is_valid
           return [false, result]
         end
-        # if the ISO includes an "iso-metadata.yaml" file, check the
-        # contents and make sure the required fields are included
-        if File.exist?("#{image_path}/iso-metadata.yaml")
-          # first, read the parameters
-          File.open("#{image_path}/iso-metadata.yaml","r") do
-          |f|
-            @_meta = YAML.load(f)
-          end
-          # set the hash variables from those parameters
-          set_hash_vars
-          # check the kernel_path parameter value
-          unless File.exists?(kernel_path)
-            logger.error "missing kernel: #{kernel_path}"
-            return [false, "missing kernel: #{kernel_path}"]
-          end
-          # check the initrd_path parameter value
-          unless File.exists?(initrd_path)
-            logger.error "missing initrd: #{initrd_path}"
-            return [false, "missing initrd: #{initrd_path}"]
-          end
-          # check the build_time parameter value
-          if @iso_build_time == nil
-            logger.error "ISO build time is nil"
-            return [false, "ISO build time is nil"]
-          end
-          # check the iso_version parameter value
-          if @iso_version == nil
-            logger.error "ISO version is nil"
-            return [false, "ISO version is nil"]
-          end
-          # check the hash_description parameter value
-          if @hash_description == nil
-            logger.error "Hash description is nil"
-            return [false, "Hash description is nil"]
-          end
-          # check the kernel_hash parameter value
-          if @kernel_hash == nil
-            logger.error "Kernel hash is nil"
-            return [false, "Kernel hash is nil"]
-          end
-          # check the initrd_hash parameter value
-          if @initrd_hash == nil
-            logger.error "Initrd hash is nil"
-            return [false, "Initrd hash is nil"]
-          end
-          # and use the hash values to check the kernel and initrd files
-          digest = ::Object::full_const_get(@hash_description["type"]).new(@hash_description["bitlen"])
-          khash = File.exist?(kernel_path) ? digest.hexdigest(File.read(kernel_path)) : ""
-          ihash = File.exist?(initrd_path) ? digest.hexdigest(File.read(initrd_path)) : ""
-          unless @kernel_hash == khash
-            logger.error "Kernel #{@kernel} is invalid"
-            return [false, "Kernel #{@kernel} is invalid"]
-          end
-          unless @initrd_hash == ihash
-            logger.error "Initrd #{@initrd} is invalid"
-            return [false, "Initrd #{@initrd} is invalid"]
-          end
-          # if all of those checks passed, then return success
-          [true, '']
-        else
-          logger.error "Missing metadata file '#{image_path}/iso-metadata.yaml'"
-          [false, "Missing metadata file '#{image_path}/iso-metadata.yaml'"]
+        # check the kernel_path parameter value
+        test_path = kernel_path
+        unless File.exists?(test_path)
+          logger.error "missing kernel: #{test_path}"
+          return [false, "missing kernel: #{test_path}"]
         end
+        # check the initrd_path parameter value
+        test_path = initrd_path
+        unless File.exists?(test_path)
+          logger.error "missing initrd: #{test_path}"
+          return [false, "missing initrd: #{test_path}"]
+        end
+        # if all of those checks passed, then return success
+        [true, '']
       end
 
-      def set_hash_vars
-        if @iso_build_time ==nil ||
-            @iso_version == nil ||
-            @kernel == nil ||
-            @initrd == nil
+      def add_docker_to_mk_image(docker_image)
 
-          @iso_build_time = @_meta['iso_build_time'].to_i
-          @iso_version = @_meta['iso_version']
-          @kernel = @_meta['kernel']
-          @initrd = @_meta['initrd']
-        end
+      end
 
-        if @kernel_hash == nil ||
-            @initrd_hash == nil ||
-            @hash_description == nil
+      def extract_pub_key(ssh_keyfile)
+        # extract SSH public key from the public key file (if that file exists,
+        # if it's readable, and if that file is indeed an SSH public key file)
 
-          @kernel_hash = @_meta['kernel_hash']
-          @initrd_hash = @_meta['initrd_hash']
-          @hash_description = @_meta['hash_description']
-        end
       end
 
       # Used to calculate a "weight" for a given ISO version.  These weights
@@ -159,8 +108,8 @@ module ProjectHanlon
       # versioning sense of the word "later") converting to larger floating point
       # numbers
       def version_weight
-        # parse the version numbers from the @iso_version value
-        version_str, commit_no = /^v?(.*)$/.match(@iso_version)[1].split("-")[0].split("+")
+        # parse the version numbers from the @os_version value
+        version_str, commit_no = /^v?(.*)$/.match(@os_version)[1].split("-")[0].split("+")
         # Limit any part of the version number to a number that is 999 or less
         version_str.split(".").map! {|v| v.to_i > 999 ? 999 : v}.join(".")
         # separate out the semantic version part (which looks like 0.10.0) from the
@@ -177,15 +126,15 @@ module ProjectHanlon
       end
 
       def print_item
-        super.push @iso_version.to_s, (Time.at(@iso_build_time)).to_s
+        super.push @os_version.to_s, (Time.at(@image_build_time)).to_s
       end
 
       def kernel_path
-        image_path + "/" + @kernel
+        image_path + "/boot/vmlinuz"
       end
 
       def initrd_path
-        image_path + "/" + @initrd
+        image_path + "/boot/initrd"
       end
 
     end

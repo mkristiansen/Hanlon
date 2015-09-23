@@ -109,7 +109,7 @@ module ProjectHanlon
                   :default     => nil,
                   :short_form  => '-n',
                   :long_form   => '--name IMAGE_NAME',
-                  :description => 'The logical name to use (os images only)',
+                  :description => 'The logical name to use (required; os images only)',
                   :uuid_is     => 'not_allowed',
                   :required    => false
                 },
@@ -117,7 +117,23 @@ module ProjectHanlon
                   :default     => nil,
                   :short_form  => '-v',
                   :long_form   => '--version VERSION',
-                  :description => 'The version to use (os images only)',
+                  :description => 'The version to use (required; mk and os images only)',
+                  :uuid_is     => 'not_allowed',
+                  :required    => false
+                },
+                { :name        => :docker_image,
+                  :default     => nil,
+                  :short_form  => '-d',
+                  :long_form   => '--docker-image /path/to/img',
+                  :description => 'The local path to MK image (required; mk images only)',
+                  :uuid_is     => 'not_allowed',
+                  :required    => false
+                },
+                { :name        => :ssh_keyfile,
+                  :default     => nil,
+                  :short_form  => '-k',
+                  :long_form   => '--ssh-keyfile /path/to/key',
+                  :description => 'The local path to public key file (optional; mk images only)',
                   :uuid_is     => 'not_allowed',
                   :required    => false
                 }
@@ -198,6 +214,8 @@ module ProjectHanlon
         # working directory) was passed in.  If the user passed in an absolute path to the file,
         # then this expression will leave that absolute path unchanged
         iso_path = File.expand_path(options[:path], Dir.pwd)
+        docker_image = options[:docker_image]
+        ssh_keyfile = options[:ssh_keyfile]
         os_name = options[:name]
         os_version = options[:version]
 
@@ -208,6 +226,11 @@ module ProjectHanlon
             "type" => image_type,
             "path" => iso_path
         }
+        # if the SSH public key and/or path to the docker image were included,
+        # add them to the body_hash
+        body_hash["docker_image"] = docker_image if docker_image
+        body_hash["ssh_keyfile"] = ssh_keyfile if ssh_keyfile
+        # if OS name and version were included, add them to the body_hash
         body_hash["name"] = os_name if os_name
         body_hash["version"] = os_version if os_version
         json_data = body_hash.to_json
@@ -236,8 +259,12 @@ module ProjectHanlon
 
       # utility methods (used to add various types of images)
 
-      def add_mk(new_image, iso_path, image_path)
-        new_image.add(iso_path, image_path)
+      def add_mk(new_image, iso_path, image_path, os_version, docker_image, ssh_keyfile)
+        raise ProjectHanlon::Error::Slice::MissingArgument,
+              'image version must be included for MK images' unless os_version && os_version != ""
+        raise ProjectHanlon::Error::Slice::MissingArgument,
+              'path to docker image must be included for MK images' unless docker_image && docker_image != ""
+        new_image.add(iso_path, image_path, {:os_version => os_version, :docker_image => docker_image, :ssh_keyfile => ssh_keyfile})
       end
 
       def add_esxi(new_image, iso_path, image_path)

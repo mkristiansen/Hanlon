@@ -228,12 +228,16 @@ module Hanlon
             requires "path", type: String, desc: "The path (absolute or relative) to the ISO"
             optional "name", type: String, desc: "The image name (required for 'os' images)"
             optional "version", type: String, desc: "The image version (required for 'os' images)"
+            optional "docker_image", type: String, desc: "The path to the docker image (required for 'mk' images)"
+            optional "ssh_keyfile", type: String, desc: "The public key file (optional for 'mk' images)"
           end
           post do
             image_type = params["type"]
             iso_path = params["path"]
             os_name = params["name"]
             os_version = params["version"]
+            docker_image = params["docker_image"]
+            ssh_keyfile = params["ssh_keyfile"]
 
             unless ([image_type.to_sym] - SLICE_REF.image_types.keys).size == 0
               raise ProjectHanlon::Error::Slice::InvalidImageType, "Invalid Image Type '#{image_type}', valid types are: " +
@@ -249,7 +253,10 @@ module Hanlon
 
             # We send the new image object to the appropriate method
             res = []
-            if image_type == 'os'
+            if image_type == 'mk'
+              res = SLICE_REF.send SLICE_REF.image_types[image_type.to_sym][:method], image, iso_path,
+                                   ProjectHanlon.config.image_path, os_version, docker_image, ssh_keyfile
+            elsif image_type == 'os'
               res = SLICE_REF.send SLICE_REF.image_types[image_type.to_sym][:method], image, iso_path,
                                    ProjectHanlon.config.image_path, os_name, os_version
             else
