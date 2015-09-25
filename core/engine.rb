@@ -234,7 +234,7 @@ module ProjectHanlon
         # if the node isn't in the DB, boot it into the MK
         # This is a default behavior
         logger.info "Node unknown - uuid: #{options[:uuid]}, mac_id: #{options[:mac_id]}"
-        default_mk_boot("unknown")
+        default_mk_boot("unknown", options)
       end
 
     end
@@ -302,12 +302,31 @@ module ProjectHanlon
       nil
     end
 
-    def default_mk_boot(uuid)
+    def default_mk_boot(uuid, options = {})
       logger.info "Responding with MK Boot - Node: #{uuid}"
+      # obtain a reference to the BootMK policy template (we'll use that in a moment)
       default = ProjectHanlon::PolicyTemplate::BootMK.new({})
+      # retrieve the SMBIOS UUID (hardware_id) for the node if the input UUID
+      # is 'unknown', otherwise grab it from the referenced node itself
+      if uuid == 'unknown'
+        if options[:uuid]
+          node_smbios_uuid = options[:uuid]
+        else
+          node_smbios_uuid = options[:mac_id]
+        end
+        # the following error condition should never occur, but just in case...
+        return default.get_error_script("Neither Node UUID (SMBIOS UUID) nor Node MAC_ID were found") unless node_smbios_uuid
+      else
+        node = get_data.fetch_object_by_uuid(:node, uuid)
+        return default.get_error_script("Node: #{uuid} not found") unless node
+        node_smbios_uuid = node.hw_id
+      end
+      # and determine which Microkernel reference we should use (there may be more
+      # than one, if so apply some rules to pick the best one to use for a default boot)
       default_mk_ref = default_mk
       return default.get_error_script("Microkernel image not found") unless default_mk_ref
-      default.get_boot_script(default_mk_ref)
+      # finally, use the policy template to retrieve the boot script to use for this node
+      default.get_boot_script(default_mk_ref, node_smbios_uuid)
     end
 
     ########

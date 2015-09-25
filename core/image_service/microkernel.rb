@@ -13,11 +13,13 @@ module ProjectHanlon
       attr_accessor :initrd_hash
       attr_accessor :image_build_time
       attr_accessor :os_version
+      attr_accessor :isolinux_cfg
 
       def initialize(hash)
         super(hash)
         @description = "MicroKernel Image"
         @path_prefix = "mk"
+        @ssh_key = nil
         @hidden = false
         from_hash(hash) unless hash == nil
       end
@@ -39,9 +41,21 @@ module ProjectHanlon
             # exist, would not have gotten through the 'verify' step, above)
             @kernel_hash = Digest::SHA256.hexdigest(File.read(kernel_path))
             @initrd_hash = Digest::SHA256.hexdigest(File.read(initrd_path))
-            # add docker image to Microkernel image and extract SSH public key from file
+            # add docker image to Microkernel image directory
+            test_filename = extra[:docker_image]
+            return [false, "Docker image file '#{test_filename}' does not exist"] unless File.exist?(test_filename)
             @docker_image = add_docker_to_mk_image(extra[:docker_image])
-            @ssh_key = extract_pub_key(extra[:ssh_keyfile]) if extra[:ssh_keyfile] && !extra[:ssh_keyfile].empty?
+            # recalculate the verification hash now that we've added a file to the
+            # Microkernel image directory
+            @verification_hash = get_dir_hash(image_path)
+            # extract SSH public key (if one was provided) from file
+            test_filename = extra[:ssh_keyfile]
+            if test_filename && !test_filename.empty?
+              return [false, "SSH key file '#{test_filename}' does not exist"] unless File.exist?(test_filename)
+              file_contents = File.read(test_filename).split("\n")[0]
+              return [false, "File '#{test_filename}' does look like an SSH keyfile"] unless /^ssh\-\S+\s+\S+\s\S+$/.match(file_contents)
+              @ssh_key = file_contents
+            end
             # retrieve modification time for docker image and add it to the object
             @image_build_time = File.mtime(extra[:docker_image]).utc.to_i
           end
@@ -60,30 +74,47 @@ module ProjectHanlon
         unless is_valid
           return [false, result]
         end
-        # check the kernel_path parameter value
+        # check for the iso_linux.cfg file we expect to see for
+        # a RancherOS-based ISO
+        isolinux_path = isolinux_cfg_path
+        unless iso_includes_file?(isolinux_path)
+          logger.error "missing isolinux.cfg file: #{isolinux_path}"
+          return [false, "missing isolinux.cfg file: #{isolinux_path}"]
+        end
+        # load the parameters from the iso_linux.cfg file into
+        # the @isolinux_cfg instance variable
+        load_isolinux_cfg(isolinux_path)
+        # then check to ensure that the kernel file shown in the
+        # iso_linux.cfg file exists at the kernel_path location in
+        # the unpacked ISO
         test_path = kernel_path
-        unless File.exists?(test_path)
+        unless iso_includes_file?(test_path)
           logger.error "missing kernel: #{test_path}"
           return [false, "missing kernel: #{test_path}"]
         end
-        # check the initrd_path parameter value
+        # and perform the same check for the initrd file shown in the
+        # isolinux.cfg file
         test_path = initrd_path
-        unless File.exists?(test_path)
+        unless iso_includes_file?(test_path)
           logger.error "missing initrd: #{test_path}"
           return [false, "missing initrd: #{test_path}"]
         end
         # if all of those checks passed, then return success
+        # (this iso looks like a RancherOS iso and the contents
+        # appear to match the contents shown in the isolinux.cfg
+        # file from the ISO)
         [true, '']
       end
 
+      # Adds the docker_image (referenced as a local path to a
+      # docker image file) to the directory created (above) when
+      # the (RancherOS-based) Microkernel ISO was unpacked into
+      # the local image path.  Throws an error if the file passed
+      # in does not look like a docker image file or if it cannot
+      # be copied over to the Microkernel directory under the local
+      # image path
       def add_docker_to_mk_image(docker_image)
-
-      end
-
-      def extract_pub_key(ssh_keyfile)
-        # extract SSH public key from the public key file (if that file exists,
-        # if it's readable, and if that file is indeed an SSH public key file)
-
+        FileUtils.cp(docker_image, image_path, { :preserve => true })
       end
 
       # Used to calculate a "weight" for a given ISO version.  These weights
@@ -129,12 +160,54 @@ module ProjectHanlon
         super.push @os_version.to_s, (Time.at(@image_build_time)).to_s
       end
 
+      def iso_includes_file?(file_path)
+        # ensure the file exists and is not empty
+        return File.size?(file_path)
+      end
+
+      def load_isolinux_cfg(isolinux_path)
+        @isolinux_cfg = {}
+        File.foreach(isolinux_path) { |line|
+          # split line into two words (a key and a value) based on white space
+          key, val = line.strip.split(/\s+/, 2)
+          @isolinux_cfg[key] = val
+        }
+      end
+
+      def cloud_config
+        config_string = "#cloud-config\n"
+        if @ssh_key
+          config_string << "ssh_authorized_keys:\n"
+          config_string << "  - #{@ssh_key}\n"
+        end
+        config_string << "write_files:\n"
+        config_string << "  - path: /opt/rancher/bin/start.sh\n"
+        config_string << "    permissions: 0755\n"
+        config_string << "    owner: root\n"
+        config_string << "    content: |\n"
+        config_string << "      #!/bin/bash\n"
+        config_string << "      echo 'Running startup script...'\n"
+        config_string
+      end
+
+      def isolinux_cfg_path
+        image_path + "/boot/isolinux/isolinux.cfg"
+      end
+
+      def kernel
+        @isolinux_cfg['kernel']
+      end
+
       def kernel_path
-        image_path + "/boot/vmlinuz"
+        image_path + kernel
+      end
+
+      def initrd
+        @isolinux_cfg['initrd']
       end
 
       def initrd_path
-        image_path + "/boot/initrd"
+        image_path + initrd
       end
 
     end

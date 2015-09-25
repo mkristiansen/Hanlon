@@ -66,6 +66,11 @@ module Hanlon
             string_ =~ /^[A-Za-z0-9]{1,22}$/
           end
 
+          def get_cloud_config_req_uuid(string_)
+            match = /^mk\/([A-Za-z0-9]{1,22})\/cloud\-config[\/]?$/.match(string_)
+            return match[1] if match
+          end
+
           def get_data_ref
             Hanlon::WebService::Utils::get_data
           end
@@ -303,8 +308,8 @@ module Hanlon
             end
             get do
               component = params[:component]
-              # test to see if the component looks more like a UUID or a path to a component
-              # of the image that the user is interested in
+              # test to see if the component looks more like a UUID, a request for the cloud-config
+              # for a Microkernel, or a path to a component of an image that the user is interested in
               if is_uuid?(component)
                 # it's a UUID, to retrieve the appropriate image and return it
                 image_uuid = component
@@ -319,7 +324,23 @@ module Hanlon
 
                 raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Image with UUID: [#{image_uuid}]" unless image && (image.class != Array || image.length > 0)
                 slice_success_object(SLICE_REF, :get_image_by_uuid, image, :success_type => :generic)
+              elsif image_uuid = get_cloud_config_req_uuid(component)
+                # if here then the component represents a request for the cloud-config for a specific
+                # instance (in this case the component looked something like 'mk/{UUID}/cloud-config',
+                # where the {UUID} part of that string is the UUID of the Microkernel instance in question);
+                # in that case, use the request UUID obtained above to retrieve the appropriate Microkernel
+                # instance and return the cloud-config that should be used with that instance
+                mk_image = SLICE_REF.get_object("images", :images, image_uuid)
+                raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Image with UUID: [#{image_uuid}]" unless mk_image
+
+                # if get this far, then return the cloud_config for the Microkernel instance
+                # that we just retrieved
+                env['api.format'] = :text
+                mk_image.cloud_config
+
               else
+                # if it's not a UUID and it's not a request for a Microkernel cloud-config, then
+                # assume it's a component of the image (so return the contents of that component)
                 begin
 
                   path = component
