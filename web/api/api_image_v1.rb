@@ -266,7 +266,7 @@ module Hanlon
             raise ProjectHanlon::Error::Slice::InternalError, "Missing parameter 'version'; required for OS and MK images" unless !os_mk_type_index || os_version
             # throw an error unless it is not an MK image or it is an MK image
             # and a value was specified for the 'docker_image' parameter
-            raise ProjectHanlon::Error::Slice::InternalError, "Missing parameter 'docker_image'; required for OS images" unless os_mk_type_index != 1 || docker_image
+            raise ProjectHanlon::Error::Slice::InternalError, "Missing parameter 'docker_image'; required for MK images" unless os_mk_type_index != 1 || docker_image
 
             # if it's a windows ISO, then make sure we can access the 'wiminfo' command
             # (we'll need it to unpack the image)
@@ -345,6 +345,7 @@ module Hanlon
 
                 raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Image with UUID: [#{image_uuid}]" unless image && (image.class != Array || image.length > 0)
                 slice_success_object(SLICE_REF, :get_image_by_uuid, image, :success_type => :generic)
+
               elsif image_uuid = get_cloud_config_req_uuid(component)
                 # if here then the component represents a request for the cloud-config for a specific
                 # instance (in this case the component looked something like 'mk/{UUID}/cloud-config',

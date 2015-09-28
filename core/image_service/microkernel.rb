@@ -256,7 +256,7 @@ module ProjectHanlon
         config_string << "      chown rancher:rancher #{host_tmp_dir}\n"
         config_string << "      cd /tmp\n"
         config_string << "      wget #{image_svc_uri}/#{docker_image}\n"
-        config_string << "      docker load -i new_mk_image_save.tar\n"
+        config_string << "      docker load -i #{docker_image}\n"
         config_string << "      docker run --privileged=true --name=hnl_mk -v /proc:/host-proc:ro -v /dev:/host-dev:ro -v /sys:/host-sys:ro -v #{host_tmp_dir}:/tmp -d --net host -t `docker images -q` /bin/bash -c '/usr/local/bin/hnl_mk_init.rb && read -p \"waiting...\"'\n"
         config_string
       end
