@@ -26,12 +26,15 @@ module ProjectHanlon
         image_svc_uri = "http://#{@config.hanlon_server}:#{@config.api_port}#{@config.websvc_root}/image/mk/#{default_mk.uuid}"
         hnl_mk_boot_debug_level = @config.hnl_mk_boot_debug_level
         hnl_mk_boot_kernel_args = @config.hnl_mk_boot_kernel_args
+        mk_password = default_mk.mk_password
         # only allow values of 'quiet' or 'debug' for this parameter; if it's anything else set it
         # to an empty string
         hnl_mk_boot_debug_level = '' unless ['quiet','debug'].include? hnl_mk_boot_debug_level
         boot_script = ""
         boot_script << "#!ipxe\n"
-        boot_script << "kernel #{image_svc_uri}#{default_mk.kernel} rancher.cloud_init.datasources=[url:#{image_svc_uri}/cloud-config]"
+        boot_script << "kernel #{image_svc_uri}#{default_mk.kernel}"
+        boot_script << " rancher.password=#{mk_password}" if mk_password
+        boot_script << " rancher.cloud_init.datasources=[url:#{image_svc_uri}/cloud-config]"
         boot_script << " smbios_uuid=#{node_smbios_uuid}"
         boot_script << " #{hnl_mk_boot_debug_level}" if hnl_mk_boot_debug_level && !hnl_mk_boot_debug_level.empty?
         boot_script << " #{hnl_mk_boot_kernel_args}" if hnl_mk_boot_kernel_args && !hnl_mk_boot_kernel_args.empty?

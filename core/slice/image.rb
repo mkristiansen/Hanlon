@@ -136,6 +136,14 @@ module ProjectHanlon
                   :description => 'The local path to public key file (optional; mk images only)',
                   :uuid_is     => 'not_allowed',
                   :required    => false
+                },
+                { :name        => :mk_password,
+                  :default     => nil,
+                  :short_form  => '-m',
+                  :long_form   => '--mk-password PASSWORD',
+                  :description => 'The microkernel password (optional; mk images only)',
+                  :uuid_is     => 'not_allowed',
+                  :required    => false
                 }
             ]
         }.freeze
@@ -216,6 +224,7 @@ module ProjectHanlon
         iso_path = File.expand_path(options[:path], Dir.pwd)
         docker_image = options[:docker_image]
         ssh_keyfile = options[:ssh_keyfile]
+        mk_password = options[:mk_password]
         os_name = options[:name]
         os_version = options[:version]
 
@@ -230,6 +239,7 @@ module ProjectHanlon
         # add them to the body_hash
         body_hash["docker_image"] = docker_image if docker_image
         body_hash["ssh_keyfile"] = ssh_keyfile if ssh_keyfile
+        body_hash["mk_password"] = mk_password if mk_password
         # if OS name and version were included, add them to the body_hash
         body_hash["name"] = os_name if os_name
         body_hash["version"] = os_version if os_version
@@ -259,12 +269,13 @@ module ProjectHanlon
 
       # utility methods (used to add various types of images)
 
-      def add_mk(new_image, iso_path, image_path, os_version, docker_image, ssh_keyfile)
+      def add_mk(new_image, iso_path, image_path, os_version, docker_image, ssh_keyfile, mk_password)
         raise ProjectHanlon::Error::Slice::MissingArgument,
               'image version must be included for MK images' unless os_version && os_version != ""
         raise ProjectHanlon::Error::Slice::MissingArgument,
               'path to docker image must be included for MK images' unless docker_image && docker_image != ""
-        new_image.add(iso_path, image_path, {:os_version => os_version, :docker_image => docker_image, :ssh_keyfile => ssh_keyfile})
+        new_image.add(iso_path, image_path, {:os_version => os_version, :docker_image => docker_image,
+                                             :ssh_keyfile => ssh_keyfile, :mk_password => mk_password})
       end
 
       def add_esxi(new_image, iso_path, image_path)

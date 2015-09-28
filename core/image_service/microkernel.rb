@@ -8,7 +8,7 @@ module ProjectHanlon
     class MicroKernel < ProjectHanlon::ImageService::Base
       attr_accessor :docker_image
       attr_accessor :ssh_key
-      attr_accessor :mk_version
+      attr_accessor :mk_password
       attr_accessor :kernel_hash
       attr_accessor :initrd_hash
       attr_accessor :image_build_time
@@ -20,6 +20,7 @@ module ProjectHanlon
         @description = "MicroKernel Image"
         @path_prefix = "mk"
         @ssh_key = nil
+        @mk_password = nil
         @hidden = false
         from_hash(hash) unless hash == nil
       end
@@ -56,6 +57,9 @@ module ProjectHanlon
               return [false, "File '#{test_filename}' does look like an SSH keyfile"] unless /^ssh\-\S+\s+\S+\s\S+$/.match(file_contents)
               @ssh_key = file_contents
             end
+            # and set the mk_password using the 'mk_password' parameter (if one was provided)
+            password = extra[:mk_password]
+            @mk_password = password if password && !password.empty?
             # retrieve modification time for docker image and add it to the object
             @image_build_time = File.mtime(extra[:docker_image]).utc.to_i
           end
@@ -115,6 +119,7 @@ module ProjectHanlon
       # image path
       def add_docker_to_mk_image(docker_image)
         FileUtils.cp(docker_image, image_path, { :preserve => true })
+        File.basename(docker_image)
       end
 
       # Used to calculate a "weight" for a given ISO version.  These weights
@@ -175,18 +180,84 @@ module ProjectHanlon
       end
 
       def cloud_config
+        config = ProjectHanlon.config
+        host_tmp_dir = '/home/rancher/container-tmp-files'
+        image_svc_uri = "http://#{config.hanlon_server}:#{config.api_port}#{config.websvc_root}/image/mk/#{uuid}"
         config_string = "#cloud-config\n"
         if @ssh_key
           config_string << "ssh_authorized_keys:\n"
           config_string << "  - #{@ssh_key}\n"
         end
         config_string << "write_files:\n"
+        config_string << "  - path: #{host_tmp_dir}/hanlonServerIP.addr\n"
+        config_string << "    permissions: 644\n"
+        config_string << "    owner: rancher\n"
+        config_string << "    content: |\n"
+        config_string << "      #{config.hanlon_server}\n"
+        config_string << "  - path: #{host_tmp_dir}/hanlonServerPort.addr\n"
+        config_string << "    permissions: 644\n"
+        config_string << "    owner: rancher\n"
+        config_string << "    content: |\n"
+        config_string << "      #{config.api_port}\n"
+        config_string << "  - path: #{host_tmp_dir}/hanlonServerBaseUri.addr\n"
+        config_string << "    permissions: 644\n"
+        config_string << "    owner: rancher\n"
+        config_string << "    content: |\n"
+        config_string << "      #{config.websvc_root}\n"
+        config_string << "  - path: #{host_tmp_dir}/first_checkin.yaml\n"
+        config_string << "    permissions: 644\n"
+        config_string << "    owner: rancher\n"
+        config_string << "    content: |\n"
+        config_string << "      --- true\n"
+        config_string << "  - path: #{host_tmp_dir}/mk_conf.yaml\n"
+        config_string << "    permissions: 644\n"
+        config_string << "    owner: rancher\n"
+        config_string << "    content: |\n"
+        config_string << "      mk_kmod_install_list_uri: /kmod-install-list\n"
+        config_string << "      mk_register_path: /hanlon/api/v1/node/register\n"
+        config_string << "      mk_tce_mirror: http://localhost:2157/tinycorelinux\n"
+        config_string << "      mk_uri: http://HANLON_URI_IP_ADDR:8026\n"
+        config_string << "      mk_checkin_interval: 60\n"
+        config_string << "      mk_checkin_path: /hanlon/api/v1/node/checkin\n"
+        config_string << "      mk_tce_install_list_uri: /tce-install-list\n"
+        config_string << "      mk_checkin_skew: 5\n"
+        config_string << "      mk_fact_excl_pattern: (^facter.*$)|(^id$)|(^kernel.*$)|(^memoryfree$)|(^operating.*$)|(^osfamily$)|(^path$)|(^ps$)|(^ruby.*$)|(^selinux$)|(^ssh.*$)|(^swap.*$)|(^timezone$)|(^uniqueid$)|(^uptime.*$)|(.*json_str$)\n"
+        config_string << "      mk_log_level: Logger::INFO\n"
+        config_string << "      mk_gem_mirror: http://localhost:2158/gem-mirror\n"
+        config_string << "      mk_gemlist_uri: /gems/gem.list\n"
+        config_string << "  - path: #{host_tmp_dir}/mk_conf_debug.yaml\n"
+        config_string << "    permissions: 644\n"
+        config_string << "    owner: rancher\n"
+        config_string << "    content: |\n"
+        config_string << "      --- \n"
+        config_string << "      mk_kmod_install_list_uri: /kmod-install-list\n"
+        config_string << "      mk_register_path: /hanlon/api/v1/node/register\n"
+        config_string << "      mk_tce_mirror: http://localhost:2157/tinycorelinux\n"
+        config_string << "      mk_uri: http://HANLON_URI_IP_ADDR:8026\n"
+        config_string << "      mk_checkin_interval: 60\n"
+        config_string << "      mk_checkin_path: /hanlon/api/v1/node/checkin\n"
+        config_string << "      mk_tce_install_list_uri: /tce-install-list\n"
+        config_string << "      mk_checkin_skew: 5\n"
+        config_string << "      mk_fact_excl_pattern: (^facter.*$)|(^id$)|(^kernel.*$)|(^memoryfree$)|(^operating.*$)|(^osfamily$)|(^path$)|(^ps$)|(^ruby.*$)|(^selinux$)|(^ssh.*$)|(^swap.*$)|(^timezone$)|(^uniqueid$)|(^uptime.*$)|(.*json_str$)\n"
+        config_string << "      mk_log_level: Logger::DEBUG\n"
+        config_string << "      mk_gem_mirror: http://localhost:2158/gem-mirror\n"
+        config_string << "      mk_gemlist_uri: /gems/gem.list\n"
+        config_string << "  - path: #{host_tmp_dir}/mk-version.yaml\n"
+        config_string << "    permissions: 644\n"
+        config_string << "    owner: rancher\n"
+        config_string << "    content: |\n"
+        config_string << "      --- \n"
+        config_string << "      mk_version: #{os_version}\n"
         config_string << "  - path: /opt/rancher/bin/start.sh\n"
         config_string << "    permissions: 0755\n"
         config_string << "    owner: root\n"
         config_string << "    content: |\n"
         config_string << "      #!/bin/bash\n"
-        config_string << "      echo 'Running startup script...'\n"
+        config_string << "      chown rancher:rancher #{host_tmp_dir}\n"
+        config_string << "      cd /tmp\n"
+        config_string << "      wget #{image_svc_uri}/#{docker_image}\n"
+        config_string << "      docker load -i new_mk_image_save.tar\n"
+        config_string << "      docker run --privileged=true --name=hnl_mk -v /proc:/host-proc:ro -v /dev:/host-dev:ro -v /sys:/host-sys:ro -v #{host_tmp_dir}:/tmp -d --net host -t `docker images -q` /bin/bash -c '/usr/local/bin/hnl_mk_init.rb && read -p \"waiting...\"'\n"
         config_string
       end
 
