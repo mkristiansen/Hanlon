@@ -356,14 +356,13 @@ module Hanlon
               # raise ProjectHanlon::Error::Slice::MissingArgument, "Must Provide At Least One Hardware ID [hw_id]" unless hw_id.count > 0
               # grab a couple of references we need
               engine = ProjectHanlon::Engine.instance
-              # if it's not the first node, check to see if the node exists
-              unless first_checkin
-                new_node = engine.lookup_node_by_hw_id({:uuid => uuid, :mac_id => mac_id})
-                if new_node
-                  # if a node with this hardware id exists, simply acknowledge the checkin request
-                  command = engine.mk_checkin(new_node.uuid, last_state)
-                  return slice_success_response(SLICE_REF, :checkin_node, command, :mk_response => true)
-                end
+              # check to see if the node exists
+              existing_node = engine.lookup_node_by_hw_id({:uuid => uuid, :mac_id => mac_id})
+              if existing_node
+                # if a node with this hardware id exists, process the checkin request (and return
+                # the resulting command)
+                command = engine.mk_checkin(existing_node.uuid, last_state)
+                return slice_success_response(SLICE_REF, :checkin_node, command, :mk_response => true)
               end
               # otherwise, if we get this far, return a command telling the Microkernel to register
               # (either because no matching node already exists or because it's the first checkin

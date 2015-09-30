@@ -319,7 +319,12 @@ module ProjectHanlon
       else
         node = get_data.fetch_object_by_uuid(:node, uuid)
         return default.get_error_script("Node: #{uuid} not found") unless node
-        node_smbios_uuid = node.hw_id
+        hw_id_array = node.hw_id
+        if hw_id_array.size == 1
+          node_smbios_uuid = hw_id_array[0]
+        else
+          node_smbios_uuid = hw_id_array.join('_')
+        end
       end
       # and determine which Microkernel reference we should use (there may be more
       # than one, if so apply some rules to pick the best one to use for a default boot)
@@ -361,6 +366,7 @@ module ProjectHanlon
           matching_nodes << node if matching_hw_id.count > 0
         end
       }
+
 
       if matching_nodes.count > 1
         # uh oh - we have more than one
