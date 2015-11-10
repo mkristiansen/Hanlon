@@ -6,7 +6,7 @@ describe 'Hanlon::WebService::Node' do
   include ProjectHanlon::HttpHelper
 
   before(:all) do
-    $hw_id = "TEST#{rand(9)}#{rand(9)}#{rand(9)}#{rand(9)}#{rand(9)}#{rand(9)}#{rand(9)}"
+    $hw_id = UUID.generate
   end
 
   describe 'resource :node' do
@@ -41,7 +41,7 @@ describe 'Hanlon::WebService::Node' do
           expect(parsed['http_err_code']).to eq(200)
           expect(parsed['errcode']).to eq(0)
           # make sure we are getting the same hw_id in return
-          expect(hnl_response['@hw_id']).to include($hw_id)
+          expect(hnl_response['@hw_id']).to include($hw_id.upcase)
           # save the created UUID for later use
           $node_uuid = hnl_response['@uuid']
         end
@@ -64,6 +64,25 @@ describe 'Hanlon::WebService::Node' do
       end
 
     end   # end GET /node
+
+    describe 'GET /node?uuid={smbiosuuid}' do
+      it 'Returns the details for a specific node (by SMBIOS UUID)' do
+        uri = URI.parse(hnl_uri + '/node?uuid=' + $hw_id)
+        # make the request
+        hnl_response, http_response = hnl_http_get(uri, true)
+        # parse the output and validate
+        parsed = JSON.parse(http_response.body)
+        expect(parsed['resource']).to eq('ProjectHanlon::Slice::Node')
+        expect(parsed['command']).to eq('get_node_by_hw_id')
+        expect(parsed['result']).to eq('Ok')
+        expect(parsed['http_err_code']).to eq(200)
+        expect(parsed['errcode']).to eq(0)
+        # make sure we are getting the same hw_id in return
+        expect(hnl_response['@hw_id']).to include($hw_id.upcase)
+        # make sure we are getting the same node
+        expect(hnl_response['@uuid']).to eq($node_uuid)
+      end
+    end   # end GET /node/{uuid}
 
     describe 'resource :power' do
 
@@ -117,6 +136,8 @@ describe 'Hanlon::WebService::Node' do
           expect(parsed['result']).to eq('Ok')
           expect(parsed['http_err_code']).to eq(200)
           expect(parsed['errcode']).to eq(0)
+          # make sure we are getting the same hw_id in return
+          expect(hnl_response['@hw_id']).to include($hw_id.upcase)
           # make sure we are getting the same node
           expect(hnl_response['@uuid']).to eq($node_uuid)
         end

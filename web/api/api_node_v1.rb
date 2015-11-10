@@ -196,7 +196,7 @@ module Hanlon
               # if a Hardware ID was supplied, then return the node with that Hardware ID
               node = ProjectHanlon::Engine.instance.lookup_node_by_hw_id({:uuid => uuid, :mac_id => []})
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Node with Hardware ID: [#{uuid}]" unless node
-              return slice_success_object(SLICE_REF, :get_all_nodes, node, :success_type => :generic)
+              return slice_success_object(SLICE_REF, :get_node_by_hw_id, node, :success_type => :generic)
             elsif policy_uuid
               # first find the policy with that UUID (in case the user only passed in a partial
               # UUID as an argument)
