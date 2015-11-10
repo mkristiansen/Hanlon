@@ -236,7 +236,7 @@ module Hanlon
               optional :ipmi_options, type: String, desc: "The IPMI connect options (JSON string)"
             end
             get do
-              uuid = params[:hw_id].upcase if params[:hw_id]
+              uuid = params[:hw_id].upcase
               node = ProjectHanlon::Engine.instance.lookup_node_by_hw_id({:uuid => uuid, :mac_id => []})
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Node with Hardware ID: [#{uuid}]" unless node
               ipmi_args = params.select { |key| ['ipmi_username', 'ipmi_password'].include?(key) }
@@ -269,7 +269,7 @@ module Hanlon
               optional :ipmi_options, type: String, desc: "The IPMI connect options (JSON string)"
             end
             post do
-              uuid = params[:hw_id]
+              uuid = params[:hw_id].upcase
               node = ProjectHanlon::Engine.instance.lookup_node_by_hw_id({:uuid => uuid, :mac_id => []})
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Node with Hardware ID: [#{uuid}]" unless node
               ipmi_args = params.select { |key| ['power_command', 'ipmi_username', 'ipmi_password'].include?(key) }
@@ -299,7 +299,7 @@ module Hanlon
               requires :action, type: String, desc: "The rebinding action to set"
             end
             post do
-              uuid = params[:hw_id]
+              uuid = params[:hw_id].upcase
               node = ProjectHanlon::Engine.instance.lookup_node_by_hw_id({:uuid => uuid, :mac_id => []})
               raise ProjectHanlon::Error::Slice::InvalidUUID, "Cannot Find Node with Hardware ID: [#{uuid}]" unless node
               set_rebinding_action(node, params[:action])
