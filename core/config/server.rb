@@ -277,9 +277,9 @@ module ProjectHanlon
           # skip to next unless looking at loopback interface or IP address is the same as the hanlon_server_ip
           next if interface_name == 'lo'
           ip_addr = Facter::Util::IP.get_interface_value(interface_name,'ipaddress')
-          netmask = Facter::Util::IP.get_interface_value(interface_name,'netmask')
           # skip to next if interface does not have an ip address assinged
           next if ip_addr == ""
+          netmask = Facter::Util::IP.get_interface_value(interface_name,'netmask')
           # convert our IP address and netmask to a subnet string
           # in CIDR notation
           subnet_str = IPAddr.new("#{ip_addr}/#{netmask}").to_s
