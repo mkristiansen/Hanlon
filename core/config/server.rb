@@ -92,6 +92,7 @@ module Facter::Util::IP
       case label
         when 'netmask'
           cidr_str = %x{#{interface_info_cmd} route show dev #{interface} | grep -v '^default' | awk '{print $1}'}.strip
+          return '' unless cidr_str.size > 0
           cidr = /^[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\/([\d]{1,2})$/.match(cidr_str)[1].to_i
           output = cidr_to_netmask(cidr)
         when 'ipaddress'
