@@ -2,16 +2,26 @@
 #
 # VERSION 2.4.0
 
-FROM ruby:2.2.1-wheezy
+FROM ruby:2.2
 MAINTAINER Joseph Callen <jcpowermac@gmail.com>
+
+# Enabling the unstable packages to install fuseiso
+RUN echo 'deb http://httpredir.debian.org/debian unstable main non-free contrib' >> /etc/apt/sources.list \
+	&& echo 'Package: *' >> /etc/apt/preferences.d/pin \
+	&& echo 'Pin: release a=stable' >> /etc/apt/preferences.d/pin \
+	&& echo 'Pin-Priority: 1000' >> /etc/apt/preferences.d/pin \
+	&& echo '' >> /etc/apt/preferences.d/pin \
+	&& echo 'Package: *' >> /etc/apt/preferences.d/pin \
+	&& echo 'Pin: release a=stable' >> /etc/apt/preferences.d/pin \
+	&& echo 'Pin-Priority: 1000' >> /etc/apt/preferences.d/pin
+
 
 # Install the required dependencies
 RUN apt-get update -y \
 	&& apt-get install -y libxml2 gettext libfuse-dev libattr1-dev git build-essential libssl-dev p7zip-full fuseiso ipmitool \
 	&& mkdir -p /usr/src/wimlib-code \
 	&& mkdir -p /home/hanlon \
-	&& git clone git://git.code.sf.net/p/wimlib/code /usr/src/wimlib-code \
-	&& git clone https://github.com/csc/Hanlon.git /home/hanlon \
+	&& git clone git://wimlib.net/wimlib /usr/src/wimlib-code \
 	&& cd /usr/src/wimlib-code \
 	&& ./bootstrap \
 	&& ./configure --without-ntfs-3g --prefix=/usr \
@@ -23,6 +33,8 @@ RUN apt-get update -y \
 	&& apt-get -y autoremove \
     	&& apt-get -y clean \
     	&& rm -rf /tmp/* /var/tmp/* /var/lib/apt/lists/*
+
+COPY . /home/hanlon
 
 # We don't need gem docs
 RUN echo "install: --no-rdoc --no-ri" > /etc/gemrc
