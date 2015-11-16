@@ -92,6 +92,7 @@ module Facter::Util::IP
       case label
         when 'netmask'
           cidr_str = %x{#{interface_info_cmd} route show dev #{interface} | grep -v '^default' | awk '{print $1}'}.strip
+          return '' unless cidr_str.size > 0
           cidr = /^[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\/([\d]{1,2})$/.match(cidr_str)[1].to_i
           output = cidr_to_netmask(cidr)
         when 'ipaddress'
@@ -277,9 +278,9 @@ module ProjectHanlon
           # skip to next unless looking at loopback interface or IP address is the same as the hanlon_server_ip
           next if interface_name == 'lo'
           ip_addr = Facter::Util::IP.get_interface_value(interface_name,'ipaddress')
-          netmask = Facter::Util::IP.get_interface_value(interface_name,'netmask')
           # skip to next if interface does not have an ip address assinged
           next if ip_addr == ""
+          netmask = Facter::Util::IP.get_interface_value(interface_name,'netmask')
           # convert our IP address and netmask to a subnet string
           # in CIDR notation
           subnet_str = IPAddr.new("#{ip_addr}/#{netmask}").to_s
