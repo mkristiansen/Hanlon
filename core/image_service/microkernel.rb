@@ -181,7 +181,7 @@ module ProjectHanlon
 
       def cloud_config
         config = ProjectHanlon.config
-        host_tmp_dir = '/home/rancher/container-tmp-files'
+        host_tmp_dir = '/container-tmp-files'
         image_svc_uri = "http://#{config.hanlon_server}:#{config.api_port}#{config.websvc_root}/image/mk/#{uuid}"
         config_string = "#cloud-config\n"
         if @ssh_key
@@ -270,7 +270,6 @@ module ProjectHanlon
         config_string << "    owner: root\n"
         config_string << "    content: |\n"
         config_string << "      #!/bin/bash\n"
-        config_string << "      chown rancher:rancher #{host_tmp_dir}\n"
         config_string << "      /opt/rancher/bin/listen-cmd-channel.sh &\n"
         config_string << "      /opt/rancher/bin/start-mk.sh &\n"
         config_string
