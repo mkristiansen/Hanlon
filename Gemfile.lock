@@ -1,3 +1,9 @@
+GIT
+  remote: https://github.com/chewi/bzip2-ruby.git
+  revision: 92d492c2b40c32a5c039314666655ebc2f52a817
+  specs:
+    bzip2-ruby (0.2.7)
+
 GEM
   remote: http://rubygems.org/
   specs:
@@ -102,6 +108,7 @@ DEPENDENCIES
   base62
   bson
   bson_ext
+  bzip2-ruby (= 0.2.7)!
   cassandra-driver
   colored
   daemons

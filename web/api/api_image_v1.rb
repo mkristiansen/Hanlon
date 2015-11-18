@@ -216,7 +216,7 @@ module Hanlon
           #     type         | String | The "type" of image being added ('mk', 'os', etc.)        |    | Default: unavailable
           #     path         | String | The "path" (absolute) to the image ISO                    |    | Default: unavailable
           #     name         | String | The logical name to use for the image (os images only)    |    | Default: unavailable
-          #     version      | String | The version to use for the image (mk and os images only)  |    | Default: unavailable
+          #     version      | String | The version to use for the image (os images only)         |    | Default: unavailable
           #     docker_image | String | Path to the Docker image (required; mk images only)       |    | Default: unavailable
           #     ssh_keyfile  | String | The public key file (optional; mk images only)            |    | Default: unavailable
           #     mk_password  | String | The microkernel password (optional; mk images only)       |    | Default: unavailable
@@ -235,7 +235,7 @@ module Hanlon
             requires "type", type: String, desc: "The image type ('mk', 'os', etc.)"
             requires "path", type: String, desc: "The path (absolute) to the ISO"
             optional "name", type: String, desc: "The image name (required for 'os' images)"
-            optional "version", type: String, desc: "The image version (required for 'mk' and 'os' images)"
+            optional "version", type: String, desc: "The image version (required for 'os' images)"
             optional "docker_image", type: String, desc: "The path to the docker image (required for 'mk' images)"
             optional "ssh_keyfile", type: String, desc: "The public key file (optional for 'mk' images)"
             optional "mk_password", type: String, desc: "The microkernel password (optional for 'mk' images)"
@@ -261,9 +261,9 @@ module Hanlon
             # throw an error unless it is not an OS image or it is an OS image
             # and a value was specified for the 'name' parameter
             raise ProjectHanlon::Error::Slice::InternalError, "Missing parameter 'name'; required for OS images" unless os_mk_type_index != 0 || os_name
-            # throw an error unless it is neither an OS or MK image or (if it is one of those
-            # two types) a value was specified for the 'version' parameter
-            raise ProjectHanlon::Error::Slice::InternalError, "Missing parameter 'version'; required for OS and MK images" unless !os_mk_type_index || os_version
+            # throw an error unless it is not an OS image or it is an OS image
+            # and a value was specified for the 'version' parameter
+            raise ProjectHanlon::Error::Slice::InternalError, "Missing parameter 'version'; required for OS images" unless os_mk_type_index != 0 || os_version
             # throw an error unless it is not an MK image or it is an MK image
             # and a value was specified for the 'docker_image' parameter
             raise ProjectHanlon::Error::Slice::InternalError, "Missing parameter 'docker_image'; required for MK images" unless os_mk_type_index != 1 || docker_image
@@ -281,7 +281,7 @@ module Hanlon
             res = []
             if image_type == 'mk'
               res = SLICE_REF.send SLICE_REF.image_types[image_type.to_sym][:method], image, iso_path,
-                                   ProjectHanlon.config.image_path, os_version, docker_image, ssh_keyfile, mk_password
+                                   ProjectHanlon.config.image_path, docker_image, ssh_keyfile, mk_password
             elsif image_type == 'os'
               res = SLICE_REF.send SLICE_REF.image_types[image_type.to_sym][:method], image, iso_path,
                                    ProjectHanlon.config.image_path, os_name, os_version
