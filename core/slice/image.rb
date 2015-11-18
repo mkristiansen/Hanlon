@@ -2,7 +2,10 @@ require "json"
 require "yaml"
 require "image_service/base"
 require "rubygems/package"
-require 'bzip2'
+begin
+  require 'bzip2'
+rescue LoadError
+end
 require 'zlib'
 
 # Root ProjectHanlon namespace
