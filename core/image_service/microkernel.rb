@@ -145,7 +145,7 @@ module ProjectHanlon
       # numbers
       def version_weight
         # parse the version numbers from the @os_version value
-        version_str, commit_no = /^v?(.*)$/.match(@os_version)[1].split("-")[0].split("+")
+        version_str, commit_no = /^v?(.*)$/.match(@os_version)[1].split("-")[0].split("_")
         # Limit any part of the version number to a number that is 999 or less
         version_str.split(".").map! {|v| v.to_i > 999 ? 999 : v}.join(".")
         # separate out the semantic version part (which looks like 0.10.0) from the
