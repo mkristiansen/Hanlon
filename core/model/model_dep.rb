@@ -52,3 +52,6 @@ require 'model/windows_2012_r2'
 # level 3 - coreos
 require 'model/coreos_stable'
 require 'model/coreos_in_memory'
+
+# level 3 - rancheros
+require 'model/rancheros_in_memory'

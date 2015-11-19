@@ -21,6 +21,7 @@ gem 'facter'
 gem 'rufus-scheduler'
 gem 'puma'
 gem 'rubyipmi'
+gem 'bzip2-ruby', '0.2.7', :git => 'https://github.com/chewi/bzip2-ruby.git'
 
 group :test do
   gem 'rspec'

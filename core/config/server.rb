@@ -177,11 +177,6 @@ module ProjectHanlon
       # mk_log_level should be 'Logger::FATAL', 'Logger::ERROR', 'Logger::WARN',
       # 'Logger::INFO', or 'Logger::DEBUG' (default is 'Logger::ERROR')
       attr_accessor :mk_log_level
-      attr_accessor :mk_tce_mirror
-      attr_accessor :mk_tce_install_list_uri
-      attr_accessor :mk_kmod_install_list_uri
-      attr_accessor :mk_gem_mirror
-      attr_accessor :mk_gemlist_uri
 
       attr_accessor :image_path
 
@@ -233,11 +228,6 @@ module ProjectHanlon
           'mk_checkin_interval'      => 60,
           'mk_checkin_skew'          => 5,
           'mk_log_level'             => "Logger::ERROR",
-          'mk_gem_mirror'            => "http://localhost:2158/gem-mirror",
-          'mk_gemlist_uri'           => "/gems/gem.list",
-          'mk_tce_mirror'            => "http://localhost:2157/tinycorelinux",
-          'mk_tce_install_list_uri'  => "/tce-install-list",
-          'mk_kmod_install_list_uri' => "/kmod-install-list",
 
           'image_path'               => default_image_path,
 

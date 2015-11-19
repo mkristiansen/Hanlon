@@ -1,6 +1,12 @@
 require "json"
 require "yaml"
 require "image_service/base"
+require "rubygems/package"
+begin
+  require 'bzip2'
+rescue LoadError
+end
+require 'zlib'
 
 # Root ProjectHanlon namespace
 module ProjectHanlon
@@ -109,7 +115,7 @@ module ProjectHanlon
                   :default     => nil,
                   :short_form  => '-n',
                   :long_form   => '--name IMAGE_NAME',
-                  :description => 'The logical name to use (os images only)',
+                  :description => 'The logical name to use (required; os images only)',
                   :uuid_is     => 'not_allowed',
                   :required    => false
                 },
@@ -117,7 +123,31 @@ module ProjectHanlon
                   :default     => nil,
                   :short_form  => '-v',
                   :long_form   => '--version VERSION',
-                  :description => 'The version to use (os images only)',
+                  :description => 'The version to use (required; os images only)',
+                  :uuid_is     => 'not_allowed',
+                  :required    => false
+                },
+                { :name        => :docker_image,
+                  :default     => nil,
+                  :short_form  => '-d',
+                  :long_form   => '--docker-image /path/to/img',
+                  :description => 'The local path to MK image (required; mk images only)',
+                  :uuid_is     => 'not_allowed',
+                  :required    => false
+                },
+                { :name        => :ssh_keyfile,
+                  :default     => nil,
+                  :short_form  => '-k',
+                  :long_form   => '--ssh-keyfile /path/to/key',
+                  :description => 'The local path to public key file (optional; mk images only)',
+                  :uuid_is     => 'not_allowed',
+                  :required    => false
+                },
+                { :name        => :mk_password,
+                  :default     => nil,
+                  :short_form  => '-m',
+                  :long_form   => '--mk-password PASSWORD',
+                  :description => 'The microkernel password (optional; mk images only)',
                   :uuid_is     => 'not_allowed',
                   :required    => false
                 }
@@ -198,6 +228,9 @@ module ProjectHanlon
         # working directory) was passed in.  If the user passed in an absolute path to the file,
         # then this expression will leave that absolute path unchanged
         iso_path = File.expand_path(options[:path], Dir.pwd)
+        docker_image = options[:docker_image]
+        ssh_keyfile = options[:ssh_keyfile]
+        mk_password = options[:mk_password]
         os_name = options[:name]
         os_version = options[:version]
 
@@ -208,6 +241,12 @@ module ProjectHanlon
             "type" => image_type,
             "path" => iso_path
         }
+        # if the SSH public key and/or path to the docker image were included,
+        # add them to the body_hash
+        body_hash["docker_image"] = docker_image if docker_image
+        body_hash["ssh_keyfile"] = ssh_keyfile if ssh_keyfile
+        body_hash["mk_password"] = mk_password if mk_password
+        # if OS name and version were included, add them to the body_hash
         body_hash["name"] = os_name if os_name
         body_hash["version"] = os_version if os_version
         json_data = body_hash.to_json
@@ -236,8 +275,24 @@ module ProjectHanlon
 
       # utility methods (used to add various types of images)
 
-      def add_mk(new_image, iso_path, image_path)
-        new_image.add(iso_path, image_path)
+      def add_mk(new_image, iso_path, image_path, docker_image, ssh_keyfile, mk_password)
+        docker_filetype = get_file_type(docker_image)
+        case docker_filetype
+          when 'bzip2'
+            os_version = get_bzip2_version_info(docker_image)
+          when 'gzip'
+            os_version = get_gzip_version_info(docker_image)
+          when 'tar'
+            os_version = get_tar_version_info(docker_image)
+          else
+            raise ProjectHanlon::Error::Slice::InputError, "Unsupported file type '#{docker_filetype}' detected for Docker image '#{docker_filetype}', supported types are 'bzip2', 'gzip', and 'tar'"
+        end
+        raise ProjectHanlon::Error::Slice::MissingArgument,
+              'MK Docker images must include a version tag' unless os_version && os_version != ""
+        raise ProjectHanlon::Error::Slice::MissingArgument,
+              'path to docker image must be included for MK images' unless docker_image && docker_image != ""
+        new_image.add(iso_path, image_path, {:os_version => os_version, :docker_image => docker_image,
+                                             :ssh_keyfile => ssh_keyfile, :mk_password => mk_password})
       end
 
       def add_esxi(new_image, iso_path, image_path)
@@ -263,6 +318,68 @@ module ProjectHanlon
       def insert_image(image_obj)
         image_obj = @data.persist_object(image_obj)
         image_obj.refresh_self
+      end
+
+      def get_file_type(file_path)
+        png_regex = Regexp.new("\x89PNG".force_encoding("binary"))
+        jpg_regex = Regexp.new("\xff\xd8\xff\xe0\x00\x10JFIF".force_encoding("binary"))
+        jpg2_regex = Regexp.new("\xff\xd8\xff\xe1(.*){2}Exif".force_encoding("binary"))
+        case IO.read(file_path, 10)
+          when /^GIF8/
+            'gif'
+          when /^#{png_regex}/
+            'png'
+          when /^#{jpg_regex}/
+            'jpg'
+          when /^#{jpg2_regex}/
+            'jpg'
+          else
+            mime_type = `file #{file_path} --mime-type`.gsub("\n", '') # Works on linux and mac
+            raise ProjectHanlon::Error::Slice::InputError, "Filetype could not be detected for '#{file_path}'" if !mime_type
+            mime_type.split(':')[1].split('/')[1].gsub('x-', '').gsub(/jpeg/, 'jpg').gsub(/text/, 'txt').gsub(/x-/, '')
+        end
+      end
+
+      def get_bzip2_version_info(docker_image_file)
+        version = nil
+        Bzip2::Reader.open(docker_image_file) { |reader|
+          io = StringIO.new(reader.read)
+          Gem::Package::TarReader.new(io) { |tar|
+            tar.seek('repositories') { |entry|
+              repo_info = entry.read
+              version = JSON.parse(repo_info).values[0].keys[0]
+            }
+          }
+        }
+        version
+      end
+
+      def get_gzip_version_info(docker_image_file)
+        version = nil
+        File.open(docker_image_file, "rb") { |file|
+          Zlib::GzipReader.wrap(file) { |gz|
+            Gem::Package::TarReader.new(gz) { |tar|
+              tar.seek('repositories') { |entry|
+                repo_info = entry.read
+                version = JSON.parse(repo_info).values[0].keys[0]
+              }
+            }
+          }
+        }
+        version
+      end
+
+      def get_tar_version_info(docker_image_file)
+        version = nil
+        File.open(docker_image_file, "rb") { |file|
+          Gem::Package::TarReader.new(file) { |tar|
+            tar.seek('repositories') { |entry|
+              repo_info = entry.read
+              version = JSON.parse(repo_info).values[0].keys[0]
+            }
+          }
+        }
+        version
       end
 
     end

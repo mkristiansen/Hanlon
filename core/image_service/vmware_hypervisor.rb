@@ -14,9 +14,9 @@ module ProjectHanlon
         from_hash(hash) unless hash == nil
       end
 
-      def add(src_image_path, lcl_image_path, extra = {})
+      def add(src_image_path, lcl_image_path)
         begin
-          resp = super(src_image_path, lcl_image_path, extra)
+          resp = super(src_image_path, lcl_image_path)
           if resp[0]
             success, result_string = verify(lcl_image_path)
             unless success
