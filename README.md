@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/csc/Hanlon.svg?branch=master)](https://travis-ci.org/csc/Hanlon)
 
-# Project Hanlon (v2.4.0)
+# Project Hanlon (v3.0.0)
 
 [![Join the chat at https://gitter.im/csc/Hanlon](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/csc/Hanlon?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
@@ -69,44 +69,13 @@ into any errors or omissions in that list.
 ## Hanlon MicroKernel
 
 Hanlon uses an associated Hanlon-Microkernel instance to discover new nodes.
-Pre-build images of the current Hanlon-Microkernel (v2.0.1) are officially
-available at:
+Pre-build (Docker) images of the current Hanlon-Microkernel (v3.0.0) are officially
+available via DockerHub at `cscdock/hanlon-microkernel`. You can also find the
+original source code that went into this release in the releases area of the
+Hanlon-Microkernel project, [here](https://github.com/csc/Hanlon-Microkernel/releases/tag/v3.0.0).
 
-[https://github.com/csc/Hanlon-Microkernel/releases/tag/v2.0.1](https://github.com/csc/Hanlon-Microkernel/releases/tag/v2.0.1)
-
-On that page, you will find three Microkernel images (`hnl_mk_debug-image.2.0.1.iso`,
-`hnl_mk_dev-image.2.0.1.iso` and `hnl_mk_prod-image.2.0.1.iso`). Those correspond to the
-debug, development and production Microkernels (respectively). The difference between
-them is as follows:
-
-*  **debug**
-
-    In a debug Microkernel, remote access to the Microkernel is allowed for the `tc`
-    user via SSH. The `tc` user is also logged into the Microkernel instance automatically
-    when the node boot process is complete. This Microkernel is useful for debugging
-    problems with the process of booting and reporting in to the Hanlon server, but
-    should not be used in production.
-
-*  **development**
-
-    In a development Microkernel, remote access to the Microkernel is allowed for the
-    `tc` user via SSH. Local access (via the console) is also enabled for the `tc` once
-    the node boot process is complete, but a password is required. This Microkernel type
-    is useful for developers working on Hanlon, where remote access to the Microkernel
-    might be required. While slightly more secure than the **debug** Microkernel (above),
-    this Microkernel is also one that is not intended for use in a production.
-
-*  **production**
-
-    In a production Microkernel, remote access to the Microkernel is disabled completely,
-    as is local access (via the console). This Microkernel is intended for use in a
-    production environment, where access to the resources of the underlying node through
-    the Microkernel could prove to be a security risk. Obviously, disabling local and
-    remote access to the Microkernel makes this type of Microkernel unsuitable for development
-    (on either Hanlon or the Hanlon-Microkernel).
-
-You can find more information on the Microkernel and on the process for building your own
-Microkernel images at the Hanlon MicroKernel project page:
+Finally, you can find more information on the Microkernel and on the process
+for building your own Microkernel images at the Hanlon MicroKernel project page:
 
 [https://github.com/csc/Hanlon-Microkernel](https://github.com/csc/Hanlon-Microkernel)
 
