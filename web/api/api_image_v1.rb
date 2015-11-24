@@ -27,7 +27,8 @@ module Hanlon
 
         rescue_from ProjectHanlon::Error::Slice::MethodNotAllowed,
                     ProjectHanlon::Error::Slice::MissingArgument,
-                    ProjectHanlon::Error::Slice::CouldNotRemove do |e|
+                    ProjectHanlon::Error::Slice::CouldNotRemove,
+                    ProjectHanlon::Error::Slice::CommandFailed do |e|
           Rack::Response.new(
               Hanlon::WebService::Response.new(403, e.class.name, e.message).to_json,
               403,
