@@ -13,9 +13,6 @@ Gem::Specification.new do |s|
   s.homepage    = 'https://github.com/csc/Hanlon/blob/master/README.md'
 
   s.add_runtime_dependency('base62', '~> 1.0')
-  s.add_runtime_dependency('bson', '~> 3.2')
-  s.add_runtime_dependency('bson_ext', '~> 1.12')
-  s.add_runtime_dependency('bson_ext', '~> 1.12')
   s.add_runtime_dependency('bzip2-ffi', '~> 1.0')
   s.add_runtime_dependency('cassandra-driver', '~> 2.1')
   s.add_runtime_dependency('colored', '~> 1.2')
