@@ -1,5 +1,6 @@
 require "fileutils"
 require "digest/sha2"
+require "open3"
 
 module ProjectHanlon
   module ImageService
@@ -165,16 +166,17 @@ module ProjectHanlon
           @mount_method = :zip
         elsif supported_methods.include?(MOUNT_COMMAND) && exec_in_path(MOUNT_COMMAND)
           logger.debug "Mounting #{isoimage} using command '#{USER_MOUNT_COMMAND} -o loop #{isoimage} #{mount_path}'"
-          `#{USER_MOUNT_COMMAND} -o loop #{isoimage} #{mount_path}`
-          if $? != 0
-            cleanup_on_failure(false, true, "Could not mount '#{isoimage}' on '#{mount_path}'")
-          else
+          stdout, stderr, status = Open3.capture3("#{USER_MOUNT_COMMAND} -o loop #{isoimage} #{mount_path}")
+          if status.success?
             @mount_method = :mount
+          else
+            cleanup_on_failure(false, true, "Command '#{USER_MOUNT_COMMAND}' failed with error '#{stderr.strip}'")
+            raise ProjectHanlon::Error::Slice::CommandFailed, "Command '#{USER_MOUNT_COMMAND}' failed with error '#{stderr.strip}'"
           end
         else
-          # raise an exception if neither command could be found
+          # raise an exception if none of the listed commands could be found
           # (this should not happen, but...)
-          raise "No supported methods #{supported_methods} were available for extracting the ISO.".tr('[]\"','()\'')
+          raise ProjectHanlon::Error::Slice::CommandFailed, "None of the listed methods #{supported_methods} were available for extracting the ISO.".tr('[]\"','()\'')
         end
         # return true, indicating success
         true
@@ -209,8 +211,8 @@ module ProjectHanlon
 
       ## cleanup_on_failure method, based on arguments will unmount the iso,
       ## delete the mount directory and/or remove the image directory.
-      ## If the image directory is removed a exception will be raised to inform
-      ## the client of the error.
+      ## If the image directory is removed an error will be logged to inform
+      ## the client of the removal.
       def cleanup_on_failure(do_unmount, do_image_delete, errormsg)
         logger.error "Error: #{errormsg}"
 
@@ -222,7 +224,7 @@ module ProjectHanlon
         # remove directory if created
         if do_image_delete
           remove_dir_completely(image_path)
-          raise "Deleted Image Directory, Image Path: #{image_path}"
+          logger.error "Deleted Image Directory, Image Path: #{image_path}"
         end
 
         [false, errormsg]
