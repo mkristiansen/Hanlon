@@ -6,24 +6,26 @@ module ProjectHanlon
   module ImageService
     # Image construct for Microkernel files
     class MicroKernel < ProjectHanlon::ImageService::Base
-      attr_accessor :mk_version
-      attr_accessor :kernel
-      attr_accessor :initrd
+      attr_accessor :docker_image
+      attr_accessor :ssh_key
+      attr_accessor :mk_password
       attr_accessor :kernel_hash
       attr_accessor :initrd_hash
-      attr_accessor :hash_description
-      attr_accessor :iso_build_time
-      attr_accessor :iso_version
+      attr_accessor :image_build_time
+      attr_accessor :os_version
+      attr_accessor :isolinux_cfg
 
       def initialize(hash)
         super(hash)
         @description = "MicroKernel Image"
         @path_prefix = "mk"
+        @ssh_key = nil
+        @mk_password = nil
         @hidden = false
         from_hash(hash) unless hash == nil
       end
 
-      def add(src_image_path, lcl_image_path, extra = {})
+      def add(src_image_path, lcl_image_path, extra)
         # Add the iso to the image svc storage
 
         begin
@@ -34,6 +36,32 @@ module ProjectHanlon
               logger.error result_string
               return [false, result_string]
             end
+            # save Microkernel version (passed in via the body of the RESTful POST)
+            @os_version = extra[:os_version]
+            # fill in the kernel and initrd hash values (if these files didn't
+            # exist, would not have gotten through the 'verify' step, above)
+            @kernel_hash = Digest::SHA256.hexdigest(File.read(kernel_path))
+            @initrd_hash = Digest::SHA256.hexdigest(File.read(initrd_path))
+            # add docker image to Microkernel image directory
+            test_filename = extra[:docker_image]
+            return [false, "Docker image file '#{test_filename}' does not exist"] unless File.exist?(test_filename)
+            @docker_image = add_docker_to_mk_image(extra[:docker_image])
+            # recalculate the verification hash now that we've added a file to the
+            # Microkernel image directory
+            @verification_hash = get_dir_hash(image_path)
+            # extract SSH public key (if one was provided) from file
+            test_filename = extra[:ssh_keyfile]
+            if test_filename && !test_filename.empty?
+              return [false, "SSH key file '#{test_filename}' does not exist"] unless File.exist?(test_filename)
+              file_contents = File.read(test_filename).split("\n")[0]
+              return [false, "File '#{test_filename}' does look like an SSH keyfile"] unless /^ssh\-\S+\s+\S+\s\S+$/.match(file_contents)
+              @ssh_key = file_contents
+            end
+            # and set the mk_password using the 'mk_password' parameter (if one was provided)
+            password = extra[:mk_password]
+            @mk_password = password if password && !password.empty?
+            # retrieve modification time for docker image and add it to the object
+            @image_build_time = File.mtime(extra[:docker_image]).utc.to_i
           end
           resp
         rescue => e
@@ -50,91 +78,48 @@ module ProjectHanlon
         unless is_valid
           return [false, result]
         end
-        # if the ISO includes an "iso-metadata.yaml" file, check the
-        # contents and make sure the required fields are included
-        if File.exist?("#{image_path}/iso-metadata.yaml")
-          # first, read the parameters
-          File.open("#{image_path}/iso-metadata.yaml","r") do
-          |f|
-            @_meta = YAML.load(f)
-          end
-          # set the hash variables from those parameters
-          set_hash_vars
-          # check the kernel_path parameter value
-          unless File.exists?(kernel_path)
-            logger.error "missing kernel: #{kernel_path}"
-            return [false, "missing kernel: #{kernel_path}"]
-          end
-          # check the initrd_path parameter value
-          unless File.exists?(initrd_path)
-            logger.error "missing initrd: #{initrd_path}"
-            return [false, "missing initrd: #{initrd_path}"]
-          end
-          # check the build_time parameter value
-          if @iso_build_time == nil
-            logger.error "ISO build time is nil"
-            return [false, "ISO build time is nil"]
-          end
-          # check the iso_version parameter value
-          if @iso_version == nil
-            logger.error "ISO version is nil"
-            return [false, "ISO version is nil"]
-          end
-          # check the hash_description parameter value
-          if @hash_description == nil
-            logger.error "Hash description is nil"
-            return [false, "Hash description is nil"]
-          end
-          # check the kernel_hash parameter value
-          if @kernel_hash == nil
-            logger.error "Kernel hash is nil"
-            return [false, "Kernel hash is nil"]
-          end
-          # check the initrd_hash parameter value
-          if @initrd_hash == nil
-            logger.error "Initrd hash is nil"
-            return [false, "Initrd hash is nil"]
-          end
-          # and use the hash values to check the kernel and initrd files
-          digest = ::Object::full_const_get(@hash_description["type"]).new(@hash_description["bitlen"])
-          khash = File.exist?(kernel_path) ? digest.hexdigest(File.read(kernel_path)) : ""
-          ihash = File.exist?(initrd_path) ? digest.hexdigest(File.read(initrd_path)) : ""
-          unless @kernel_hash == khash
-            logger.error "Kernel #{@kernel} is invalid"
-            return [false, "Kernel #{@kernel} is invalid"]
-          end
-          unless @initrd_hash == ihash
-            logger.error "Initrd #{@initrd} is invalid"
-            return [false, "Initrd #{@initrd} is invalid"]
-          end
-          # if all of those checks passed, then return success
-          [true, '']
-        else
-          logger.error "Missing metadata file '#{image_path}/iso-metadata.yaml'"
-          [false, "Missing metadata file '#{image_path}/iso-metadata.yaml'"]
+        # check for the iso_linux.cfg file we expect to see for
+        # a RancherOS-based ISO
+        isolinux_path = isolinux_cfg_path
+        unless iso_includes_file?(isolinux_path)
+          logger.error "missing isolinux.cfg file: #{isolinux_path}"
+          return [false, "missing isolinux.cfg file: #{isolinux_path}"]
         end
+        # load the parameters from the iso_linux.cfg file into
+        # the @isolinux_cfg instance variable
+        load_isolinux_cfg(isolinux_path)
+        # then check to ensure that the kernel file shown in the
+        # iso_linux.cfg file exists at the kernel_path location in
+        # the unpacked ISO
+        test_path = kernel_path
+        unless iso_includes_file?(test_path)
+          logger.error "missing kernel: #{test_path}"
+          return [false, "missing kernel: #{test_path}"]
+        end
+        # and perform the same check for the initrd file shown in the
+        # isolinux.cfg file
+        test_path = initrd_path
+        unless iso_includes_file?(test_path)
+          logger.error "missing initrd: #{test_path}"
+          return [false, "missing initrd: #{test_path}"]
+        end
+        # if all of those checks passed, then return success
+        # (this iso looks like a RancherOS iso and the contents
+        # appear to match the contents shown in the isolinux.cfg
+        # file from the ISO)
+        [true, '']
       end
 
-      def set_hash_vars
-        if @iso_build_time ==nil ||
-            @iso_version == nil ||
-            @kernel == nil ||
-            @initrd == nil
-
-          @iso_build_time = @_meta['iso_build_time'].to_i
-          @iso_version = @_meta['iso_version']
-          @kernel = @_meta['kernel']
-          @initrd = @_meta['initrd']
-        end
-
-        if @kernel_hash == nil ||
-            @initrd_hash == nil ||
-            @hash_description == nil
-
-          @kernel_hash = @_meta['kernel_hash']
-          @initrd_hash = @_meta['initrd_hash']
-          @hash_description = @_meta['hash_description']
-        end
+      # Adds the docker_image (referenced as a local path to a
+      # docker image file) to the directory created (above) when
+      # the (RancherOS-based) Microkernel ISO was unpacked into
+      # the local image path.  Throws an error if the file passed
+      # in does not look like a docker image file or if it cannot
+      # be copied over to the Microkernel directory under the local
+      # image path
+      def add_docker_to_mk_image(docker_image)
+        FileUtils.cp(docker_image, image_path, { :preserve => true })
+        File.basename(docker_image)
       end
 
       # Used to calculate a "weight" for a given ISO version.  These weights
@@ -159,8 +144,8 @@ module ProjectHanlon
       # versioning sense of the word "later") converting to larger floating point
       # numbers
       def version_weight
-        # parse the version numbers from the @iso_version value
-        version_str, commit_no = /^v?(.*)$/.match(@iso_version)[1].split("-")[0].split("+")
+        # parse the version numbers from the @os_version value
+        version_str, commit_no = /^v?(.*)$/.match(@os_version)[1].split("-")[0].split("_")
         # Limit any part of the version number to a number that is 999 or less
         version_str.split(".").map! {|v| v.to_i > 999 ? 999 : v}.join(".")
         # separate out the semantic version part (which looks like 0.10.0) from the
@@ -177,15 +162,122 @@ module ProjectHanlon
       end
 
       def print_item
-        super.push @iso_version.to_s, (Time.at(@iso_build_time)).to_s
+        super.push @os_version.to_s, (Time.at(@image_build_time)).to_s
+      end
+
+      def iso_includes_file?(file_path)
+        # ensure the file exists and is not empty
+        return File.size?(file_path)
+      end
+
+      def load_isolinux_cfg(isolinux_path)
+        @isolinux_cfg = {}
+        File.foreach(isolinux_path) { |line|
+          # split line into two words (a key and a value) based on white space
+          key, val = line.strip.split(/\s+/, 2)
+          @isolinux_cfg[key] = val
+        }
+      end
+
+      def cloud_config
+        config = ProjectHanlon.config
+        host_tmp_dir = '/container-tmp-files'
+        image_svc_uri = "http://#{config.hanlon_server}:#{config.api_port}#{config.websvc_root}/image/mk/#{uuid}"
+        config_string = "#cloud-config\n"
+        if @ssh_key
+          config_string << "ssh_authorized_keys:\n"
+          config_string << "  - #{@ssh_key}\n"
+        end
+        config_string << "write_files:\n"
+        config_string << "  - path: #{host_tmp_dir}/first_checkin.yaml\n"
+        config_string << "    permissions: 644\n"
+        config_string << "    owner: root\n"
+        config_string << "    content: |\n"
+        config_string << "      --- true\n"
+        config_string << "  - path: #{host_tmp_dir}/mk_conf.yaml\n"
+        config_string << "    permissions: 644\n"
+        config_string << "    owner: root\n"
+        config_string << "    content: |\n"
+        config_string << "      mk_register_path: #{config.websvc_root}/node/register\n"
+        config_string << "      mk_uri: http://#{config.hanlon_server}:#{config.api_port}\n"
+        config_string << "      mk_checkin_interval: #{config.mk_checkin_interval}\n"
+        config_string << "      mk_checkin_path: #{config.websvc_root}/node/checkin\n"
+        config_string << "      mk_checkin_skew: #{config.mk_checkin_skew}\n"
+        config_string << "      mk_fact_excl_pattern: #{config.mk_fact_excl_pattern}\n"
+        config_string << "      mk_log_level: #{config.mk_log_level}\n"
+        config_string << "  - path: #{host_tmp_dir}/mk-version.yaml\n"
+        config_string << "    permissions: 644\n"
+        config_string << "    owner: root\n"
+        config_string << "    content: |\n"
+        config_string << "      --- \n"
+        config_string << "      mk_version: #{os_version}\n"
+        config_string << "  - path: /opt/rancher/bin/listen-cmd-channel.sh\n"
+        config_string << "    permissions: 755\n"
+        config_string << "    owner: root\n"
+        config_string << "    content: |\n"
+        config_string << "      #!/bin/bash\n"
+        config_string << "      [ -d #{host_tmp_dir}/cmd-channels ] || mkdir #{host_tmp_dir}/cmd-channels\n"
+        config_string << "      [ -e #{host_tmp_dir}/cmd-channels/node-state-channel ] || mkfifo #{host_tmp_dir}/cmd-channels/node-state-channel\n"
+        config_string << "      while read msg < #{host_tmp_dir}/cmd-channels/node-state-channel; do\n"
+        config_string << "        if [ \"$msg\" = \"reboot\" ]; then\n"
+        config_string << "          reboot\n"
+        config_string << "        elif [ \"$msg\" = \"poweroff\" ]; then\n"
+        config_string << "          poweroff\n"
+        config_string << "        else\n"
+        config_string << "          echo \"message '$msg' unrecognized\"\n"
+        config_string << "        fi\n"
+        config_string << "      done\n"
+        config_string << "  - path: /opt/rancher/bin/start-mk.sh\n"
+        config_string << "    permissions: 755\n"
+        config_string << "    owner: root\n"
+        config_string << "    content: |\n"
+        config_string << "      #!/bin/bash\n"
+        config_string << "      \n"
+        config_string << "      # download Microkernel image from Hanlon server\n"
+        config_string << "      cd /tmp\n"
+        config_string << "      wget #{image_svc_uri}/#{docker_image}\n"
+        config_string << "      # wait until docker daemon is running\n"
+        config_string << "      prev_time=0\n"
+        config_string << "      sleep_time=1\n"
+        config_string << "      while true; do\n"
+        config_string << "        # break out of loop if docker daemon is in process table\n"
+        config_string << "        ps aux | grep `cat /var/run/docker.pid` | grep -v grep 2>&1 > /dev/null && break\n"
+        config_string << "        tmp_val=$((prev_time+sleep_time))\n"
+        config_string << "        prev_time=$sleep_time\n"
+        config_string << "        sleep_time=$tmp_val\n"
+        config_string << "        sleep $sleep_time\n"
+        config_string << "      done\n"
+        config_string << "      # load Microkernel image and start the Microkernel\n"
+        config_string << "      docker load -i #{docker_image}\n"
+        config_string << "      docker run --privileged=true --name=hnl_mk -v /proc:/host-proc:ro -v /dev:/host-dev:ro -v /sys:/host-sys:ro -v #{host_tmp_dir}:/tmp -d --net host -t `docker images -q` /bin/bash -c '/usr/local/bin/hnl_mk_init.rb && read -p \"waiting...\"'\n"
+        config_string << "  - path: /opt/rancher/bin/start.sh\n"
+        config_string << "    permissions: 755\n"
+        config_string << "    owner: root\n"
+        config_string << "    content: |\n"
+        config_string << "      #!/bin/bash\n"
+        config_string << "      /opt/rancher/bin/listen-cmd-channel.sh &\n"
+        config_string << "      /opt/rancher/bin/start-mk.sh &\n"
+        config_string
+      end
+
+      def isolinux_cfg_path
+        image_path + "/boot/isolinux/isolinux.cfg"
+      end
+
+      def kernel
+        @isolinux_cfg['kernel']
       end
 
       def kernel_path
-        image_path + "/" + @kernel
+        image_path + kernel
+      end
+
+      def initrd
+        @isolinux_cfg['initrd']
       end
 
       def initrd_path
-        image_path + "/" + @initrd
+        image_path + initrd
       end
 
     end

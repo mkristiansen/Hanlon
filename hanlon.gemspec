@@ -3,8 +3,8 @@ raise 'Ruby should be ~>2.2' unless RUBY_VERSION.to_f >= 2.2
 
 Gem::Specification.new do |s|
   s.name        = 'project_hanlon'
-  s.version     = '2.4.0'
-  s.date        = '2015-05-15'
+  s.version     = '3.0.0'
+  s.date        = '2015-11-15'
   s.summary     = 'Project Hanlon'
   s.description = 'Next-generation automation software for bare-metal and virtual server provisioning'
   s.authors     = ['Nicholas Weaver', 'Tom McSweeney']
@@ -15,6 +15,8 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency('base62', '~> 1.0')
   s.add_runtime_dependency('bson', '~> 3.2')
   s.add_runtime_dependency('bson_ext', '~> 1.12')
+  s.add_runtime_dependency('bson_ext', '~> 1.12')
+  s.add_runtime_dependency('bzip2-ffi', '~> 1.0')
   s.add_runtime_dependency('cassandra-driver', '~> 2.1')
   s.add_runtime_dependency('colored', '~> 1.2')
   s.add_runtime_dependency('daemons', '~> 1.2')

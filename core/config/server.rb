@@ -92,6 +92,7 @@ module Facter::Util::IP
       case label
         when 'netmask'
           cidr_str = %x{#{interface_info_cmd} route show dev #{interface} | grep -v '^default' | awk '{print $1}'}.strip
+          return '' unless cidr_str.size > 0
           cidr = /^[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\/([\d]{1,2})$/.match(cidr_str)[1].to_i
           output = cidr_to_netmask(cidr)
         when 'ipaddress'
@@ -176,11 +177,6 @@ module ProjectHanlon
       # mk_log_level should be 'Logger::FATAL', 'Logger::ERROR', 'Logger::WARN',
       # 'Logger::INFO', or 'Logger::DEBUG' (default is 'Logger::ERROR')
       attr_accessor :mk_log_level
-      attr_accessor :mk_tce_mirror
-      attr_accessor :mk_tce_install_list_uri
-      attr_accessor :mk_kmod_install_list_uri
-      attr_accessor :mk_gem_mirror
-      attr_accessor :mk_gemlist_uri
 
       attr_accessor :image_path
 
@@ -232,11 +228,6 @@ module ProjectHanlon
           'mk_checkin_interval'      => 60,
           'mk_checkin_skew'          => 5,
           'mk_log_level'             => "Logger::ERROR",
-          'mk_gem_mirror'            => "http://localhost:2158/gem-mirror",
-          'mk_gemlist_uri'           => "/gems/gem.list",
-          'mk_tce_mirror'            => "http://localhost:2157/tinycorelinux",
-          'mk_tce_install_list_uri'  => "/tce-install-list",
-          'mk_kmod_install_list_uri' => "/kmod-install-list",
 
           'image_path'               => default_image_path,
 
@@ -277,9 +268,9 @@ module ProjectHanlon
           # skip to next unless looking at loopback interface or IP address is the same as the hanlon_server_ip
           next if interface_name == 'lo'
           ip_addr = Facter::Util::IP.get_interface_value(interface_name,'ipaddress')
-          netmask = Facter::Util::IP.get_interface_value(interface_name,'netmask')
           # skip to next if interface does not have an ip address assinged
           next if ip_addr == ""
+          netmask = Facter::Util::IP.get_interface_value(interface_name,'netmask')
           # convert our IP address and netmask to a subnet string
           # in CIDR notation
           subnet_str = IPAddr.new("#{ip_addr}/#{netmask}").to_s
