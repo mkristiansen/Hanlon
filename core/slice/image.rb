@@ -3,7 +3,7 @@ require "yaml"
 require "image_service/base"
 require "rubygems/package"
 begin
-  require 'bzip2'
+  require 'bzip2/ffi'
 rescue LoadError
 end
 require 'zlib'
@@ -342,7 +342,7 @@ module ProjectHanlon
 
       def get_bzip2_version_info(docker_image_file)
         version = nil
-        Bzip2::Reader.open(docker_image_file) { |reader|
+        Bzip2::FFI::Reader.open(docker_image_file) { |reader|
           io = StringIO.new(reader.read)
           Gem::Package::TarReader.new(io) { |tar|
             tar.seek('repositories') { |entry|

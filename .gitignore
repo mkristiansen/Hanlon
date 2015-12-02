@@ -4,7 +4,6 @@
 .buildpath
 .config
 .project
-.idea
 coverage
 InstalledFiles
 lib/bundler/man
@@ -21,6 +20,9 @@ nohup.out
 
 /cli/config/*.conf
 /web/config/*.conf
+
+# RubyMine project files
+.idea
 
 # Sublime Text artifacts
 *.sublime*
