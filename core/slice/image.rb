@@ -1,11 +1,8 @@
-require "json"
-require "yaml"
-require "image_service/base"
-require "rubygems/package"
-begin
-  require 'bzip2/ffi'
-rescue LoadError
-end
+require 'json'
+require 'yaml'
+require 'image_service/base'
+require 'rubygems/package'
+require 'bzip2/ffi'
 require 'zlib'
 
 # Root ProjectHanlon namespace
@@ -19,6 +16,11 @@ module ProjectHanlon
     class Image < ProjectHanlon::Slice
 
       attr_reader :image_types
+      DECOMP_METHOD_HASH = { 'tar' => nil,
+                             'gzip' => Zlib::GzipReader.method(:wrap),
+                             'bzip2' => Bzip2::FFI::Reader.method(:open)
+      }
+      SUPPORTED_TYPES = DECOMP_METHOD_HASH.keys
 
       # Initializes ProjectHanlon::Slice::Model including #slice_commands, #slice_commands_help
       # @param [Array] args
@@ -29,29 +31,29 @@ module ProjectHanlon
         # get the available image types (input type must match one of these)
         @image_types = {
             :mk =>       {
-                :desc => "MicroKernel ISO",
-                :classname => "ProjectHanlon::ImageService::MicroKernel",
-                :method => "add_mk"
+                :desc => 'MicroKernel ISO',
+                :classname => 'ProjectHanlon::ImageService::MicroKernel',
+                :method => 'add_mk'
             },
             :os =>        {
-                :desc => "OS Install ISO",
-                :classname => "ProjectHanlon::ImageService::OSInstall",
-                :method => "add_os"
+                :desc => 'OS Install ISO',
+                :classname => 'ProjectHanlon::ImageService::OSInstall',
+                :method => 'add_os'
             },
             :win =>        {
-                :desc => "Windows Install ISO",
-                :classname => "ProjectHanlon::ImageService::WindowsInstall",
-                :method => "add_win"
+                :desc => 'Windows Install ISO',
+                :classname => 'ProjectHanlon::ImageService::WindowsInstall',
+                :method => 'add_win'
             },
             :esxi =>      {
-                :desc => "VMware Hypervisor ISO",
-                :classname => "ProjectHanlon::ImageService::VMwareHypervisor",
-                :method => "add_esxi"
+                :desc => 'VMware Hypervisor ISO',
+                :classname => 'ProjectHanlon::ImageService::VMwareHypervisor',
+                :method => 'add_esxi'
             },
             :xenserver => {
-                :desc => "XenServer Hypervisor ISO",
-                :classname => "ProjectHanlon::ImageService::XenServerHypervisor",
-                :method => "add_xenserver"
+                :desc => 'XenServer Hypervisor ISO',
+                :classname => 'ProjectHanlon::ImageService::XenServerHypervisor',
+                :method => 'add_xenserver'
             }
         }
       end
@@ -64,21 +66,21 @@ module ProjectHanlon
         # get the slice commands map for this slice (based on the set
         # of commands that are typical for most slices)
         commands = get_command_map(
-            "image_help",
-            "get_images",
-            "get_image_by_uuid",
-            "add_image",
+            'image_help',
+            'get_images',
+            'get_image_by_uuid',
+            'add_image',
             nil,
             nil,
-            "remove_image")
+            'remove_image')
         # and add a few more commands specific to this slice; first remove the default line that
         # handles the lines where a UUID is passed in as part of a "get_node_by_uuid" command
         commands[:get].delete(/^(?!^(all|\-\-help|\-h|\{\}|\{.*\}|nil)$)\S+$/)
         # then add a slightly different version of this line back in; one that incorporates
         # the other flags we might pass in as part of a "get_all_nodes" command
-        commands[:get][/^(?!^(all|\-\-hidden|\-i|\-\-help|\-h|\{\}|\{.*\}|nil)$)\S+$/] = "get_image_by_uuid"
+        commands[:get][/^(?!^(all|\-\-hidden|\-i|\-\-help|\-h|\{\}|\{.*\}|nil)$)\S+$/] = 'get_image_by_uuid'
         # and add in a couple of lines to that handle those flags properly
-        commands[:get][["-i", "--hidden"]] = "get_images"
+        commands[:get][['-i', '--hidden']] = 'get_images'
         commands
       end
 
@@ -166,13 +168,13 @@ module ProjectHanlon
           rescue
           end
         end
-        puts "Image Slice: used to add, view, and remove Images.".red
-        puts "Image Commands:".yellow
-        puts "\thanlon image [get] [all] [--hidden,-i]    " + "View all images (detailed list)".yellow
-        puts "\thanlon image [get] (UUID)                 " + "View details of specified image".yellow
-        puts "\thanlon image add (options...)             " + "Add a new image to the system".yellow
-        puts "\thanlon image remove (UUID)                " + "Remove existing image from the system".yellow
-        puts "\thanlon image --help|-h                    " + "Display this screen".yellow
+        puts 'Image Slice: used to add, view, and remove Images.'.red
+        puts 'Image Commands:'.yellow
+        puts '\thanlon image [get] [all] [--hidden,-i]    ' + 'View all images (detailed list)'.yellow
+        puts '\thanlon image [get] (UUID)                 ' + 'View details of specified image'.yellow
+        puts '\thanlon image add (options...)             ' + 'Add a new image to the system'.yellow
+        puts '\thanlon image remove (UUID)                ' + 'Remove existing image from the system'.yellow
+        puts '\thanlon image --help|-h                    ' + 'Display this screen'.yellow
       end
 
       #Lists details for all images
@@ -180,7 +182,7 @@ module ProjectHanlon
         @command = :get_images
         # set a flag indicating whether or not the user wants to see all images,
         # including the hidden ones
-        show_hidden = (@prev_args.peek(0) == "-i" || @prev_args.peek(0) == "--hidden")
+        show_hidden = (@prev_args.peek(0) == '-i' || @prev_args.peek(0) == '--hidden')
         # get the images from the RESTful API (as an array of objects)
         uri_str = ( show_hidden ? "#{@uri_string}?hidden=true" : @uri_string )
         uri = URI.parse uri_str
@@ -191,7 +193,7 @@ module ProjectHanlon
           result = hash_array_to_obj_array(expand_response_with_uris(result), sort_fieldname)
         end
         # and print the result
-        print_object_array(result, "Images:", :style => :table)
+        print_object_array(result, 'Images:', :style => :table)
       end
 
       #Lists details for a specific image
@@ -204,7 +206,7 @@ module ProjectHanlon
         # and get the results of the appropriate RESTful request using that URI
         result = hnl_http_get(uri)
         # finally, based on the options selected, print the results
-        print_object_array(hash_array_to_obj_array([result]), "Image:")
+        print_object_array(hash_array_to_obj_array([result]), 'Image:')
       end
 
       #Add an image
@@ -216,8 +218,8 @@ module ProjectHanlon
         # parse and validate the options that were passed in as part of this
         # subcommand (this method will return a UUID value, if present, and the
         # options map constructed from the @commmand_array)
-        tmp, options = parse_and_validate_options(option_items, :require_all, :banner => "hanlon image add (options...)")
-        includes_uuid = true if tmp && tmp != "add"
+        tmp, options = parse_and_validate_options(option_items, :require_all, :banner => 'hanlon image add (options...)')
+        includes_uuid = true if tmp && tmp != 'add'
         # check for usage errors (the boolean value at the end of this method
         # call is used to indicate whether the choice of options from the
         # option_items hash must be an exclusive choice)
@@ -238,29 +240,29 @@ module ProjectHanlon
         uri = URI.parse @uri_string
 
         body_hash = {
-            "type" => image_type,
-            "path" => iso_path
+            'type' => image_type,
+            'path' => iso_path
         }
         # if the SSH public key and/or path to the docker image were included,
         # add them to the body_hash
-        body_hash["docker_image"] = docker_image if docker_image
-        body_hash["ssh_keyfile"] = ssh_keyfile if ssh_keyfile
-        body_hash["mk_password"] = mk_password if mk_password
+        body_hash['docker_image'] = docker_image if docker_image
+        body_hash['ssh_keyfile'] = ssh_keyfile if ssh_keyfile
+        body_hash['mk_password'] = mk_password if mk_password
         # if OS name and version were included, add them to the body_hash
-        body_hash["name"] = os_name if os_name
-        body_hash["version"] = os_version if os_version
+        body_hash['name'] = os_name if os_name
+        body_hash['version'] = os_version if os_version
         json_data = body_hash.to_json
-        puts "Attempting to add, please wait...".green
+        puts 'Attempting to add, please wait...'.green
         result = hnl_http_post_json_data(uri, json_data)
         # if got a single hash map back, then print the details
-        return print_object_array(hash_array_to_obj_array([result]), "Image Added:") unless result.is_a?(Array)
+        return print_object_array(hash_array_to_obj_array([result]), 'Image Added:') unless result.is_a?(Array)
         # otherwise print the table containing the results
         unless result.blank?
           # convert it to a sorted array of objects (from an array of hashes)
           sort_fieldname = 'wim_index'
           result = hash_array_to_obj_array(expand_response_with_uris(result), sort_fieldname)
         end
-        print_object_array(result, "Images:", :style => :table)
+        print_object_array(result, 'Images:', :style => :table)
       end
 
       def remove_image
@@ -277,16 +279,8 @@ module ProjectHanlon
 
       def add_mk(new_image, iso_path, image_path, docker_image, ssh_keyfile, mk_password)
         docker_filetype = get_file_type(docker_image)
-        case docker_filetype
-          when 'bzip2'
-            os_version = get_bzip2_version_info(docker_image)
-          when 'gzip'
-            os_version = get_gzip_version_info(docker_image)
-          when 'tar'
-            os_version = get_tar_version_info(docker_image)
-          else
-            raise ProjectHanlon::Error::Slice::InputError, "Unsupported file type '#{docker_filetype}' detected for Docker image '#{docker_filetype}', supported types are 'bzip2', 'gzip', and 'tar'"
-        end
+        raise ProjectHanlon::Error::Slice::InputError, "Unsupported file type '#{docker_filetype}' detected for Docker image '#{docker_filetype}'; supported types are #{SUPPORTED_TYPES}" unless SUPPORTED_TYPES.include?(docker_filetype)
+        os_version = get_docker_version_info(docker_image, DECOMP_METHOD_HASH[docker_filetype])
         raise ProjectHanlon::Error::Slice::MissingArgument,
               'MK Docker images must include a version tag' unless os_version && os_version != ""
         raise ProjectHanlon::Error::Slice::MissingArgument,
@@ -309,9 +303,9 @@ module ProjectHanlon
 
       def add_os(new_image, iso_path, image_path, os_name, os_version)
         raise ProjectHanlon::Error::Slice::MissingArgument,
-              'image name must be included for OS images' unless os_name && os_name != ""
+              'image name must be included for OS images' unless os_name && os_name != ''
         raise ProjectHanlon::Error::Slice::MissingArgument,
-              'image version must be included for OS images' unless os_version && os_version != ""
+              'image version must be included for OS images' unless os_version && os_version != ''
         new_image.add(iso_path, image_path, {:os_version => os_version, :os_name => os_name})
       end
 
@@ -321,9 +315,9 @@ module ProjectHanlon
       end
 
       def get_file_type(file_path)
-        png_regex = Regexp.new("\x89PNG".force_encoding("binary"))
-        jpg_regex = Regexp.new("\xff\xd8\xff\xe0\x00\x10JFIF".force_encoding("binary"))
-        jpg2_regex = Regexp.new("\xff\xd8\xff\xe1(.*){2}Exif".force_encoding("binary"))
+        png_regex = Regexp.new("\x89PNG".force_encoding('binary'))
+        jpg_regex = Regexp.new("\xff\xd8\xff\xe0\x00\x10JFIF".force_encoding('binary'))
+        jpg2_regex = Regexp.new("\xff\xd8\xff\xe1(.*){2}Exif".force_encoding('binary'))
         case IO.read(file_path, 10)
           when /^GIF8/
             'gif'
@@ -334,51 +328,36 @@ module ProjectHanlon
           when /^#{jpg2_regex}/
             'jpg'
           else
-            mime_type = `file #{file_path} --mime-type`.gsub("\n", '') # Works on linux and mac
+            mime_type = `file #{file_path} --mime-type`.gsub('\n', '') # Works on linux and mac
             raise ProjectHanlon::Error::Slice::InputError, "Filetype could not be detected for '#{file_path}'" if !mime_type
             mime_type.split(':')[1].split('/')[1].gsub('x-', '').gsub(/jpeg/, 'jpg').gsub(/text/, 'txt').gsub(/x-/, '')
         end
       end
 
-      def get_bzip2_version_info(docker_image_file)
+      def get_docker_version_info(docker_image, zip_method = nil)
         version = nil
-        Bzip2::FFI::Reader.open(docker_image_file) { |reader|
-          io = StringIO.new(reader.read)
-          Gem::Package::TarReader.new(io) { |tar|
-            tar.seek('repositories') { |entry|
-              repo_info = entry.read
-              version = JSON.parse(repo_info).values[0].keys[0]
-            }
+        File.open(docker_image, 'rb') { |image|
+          return get_docker_version_from_tar(image) unless zip_method
+          zip_method.call(image) { |file|
+            if file.class == Bzip2::FFI::Reader
+              io = StringIO.new(file.read)
+            else
+              io = file
+            end
+            version = get_docker_version_from_tar(io)
           }
         }
         version
       end
 
-      def get_gzip_version_info(docker_image_file)
+      def get_docker_version_from_tar(file)
         version = nil
-        File.open(docker_image_file, "rb") { |file|
-          Zlib::GzipReader.wrap(file) { |gz|
-            Gem::Package::TarReader.new(gz) { |tar|
-              tar.seek('repositories') { |entry|
-                repo_info = entry.read
-                version = JSON.parse(repo_info).values[0].keys[0]
-              }
-            }
-          }
-        }
-        version
-      end
-
-      def get_tar_version_info(docker_image_file)
-        version = nil
-        File.open(docker_image_file, "rb") { |file|
-          Gem::Package::TarReader.new(file) { |tar|
-            tar.seek('repositories') { |entry|
-              repo_info = entry.read
-              version = JSON.parse(repo_info).values[0].keys[0]
-            }
-          }
-        }
+         Gem::Package::TarReader.new(file) { |tar|
+           tar.seek('repositories') { |entry|
+             repo_info = entry.read
+             version = JSON.parse(repo_info).values[0].keys[0]
+           }
+         }
         version
       end
 
