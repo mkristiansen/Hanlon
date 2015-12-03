@@ -1,8 +1,8 @@
-require 'json'
-require 'yaml'
-require 'image_service/base'
-require 'rubygems/package'
 require 'bzip2/ffi'
+require 'image_service/base'
+require 'json'
+require 'rubygems/package'
+require 'yaml'
 require 'zlib'
 
 # Root ProjectHanlon namespace
