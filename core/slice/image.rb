@@ -279,7 +279,7 @@ module ProjectHanlon
 
       def add_mk(new_image, iso_path, image_path, docker_image, ssh_keyfile, mk_password)
         docker_filetype = get_file_type(docker_image)
-        raise ProjectHanlon::Error::Slice::InputError, "Unsupported file type '#{docker_filetype}' detected for Docker image '#{docker_filetype}'; supported types are #{SUPPORTED_TYPES}" unless SUPPORTED_TYPES.include?(docker_filetype)
+        raise ProjectHanlon::Error::Slice::InputError, "Unsupported file type '#{docker_filetype}' detected for Docker image '#{docker_image}'; supported types are #{SUPPORTED_TYPES}" unless SUPPORTED_TYPES.include?(docker_filetype)
         os_version = get_docker_version_info(docker_image, DECOMP_METHOD_HASH[docker_filetype])
         raise ProjectHanlon::Error::Slice::MissingArgument,
               'MK Docker images must include a version tag' unless os_version && os_version != ""
