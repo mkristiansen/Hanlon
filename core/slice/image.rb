@@ -280,12 +280,22 @@ module ProjectHanlon
       def add_mk(new_image, iso_path, image_path, docker_image, ssh_keyfile, mk_password)
         # ensure a path was passed in for the docker_image
         raise ProjectHanlon::Error::Slice::MissingArgument, 'path to docker image must be included for MK images' unless docker_image && docker_image != ""
-        # get the filetype for the docker_image
-        docker_filetype = get_file_type(docker_image)
-        # ensure it's a supported filetype
-        raise ProjectHanlon::Error::Slice::InputError, "Unsupported file type '#{docker_filetype}' detected for Docker image '#{docker_image}'; supported types are #{SUPPORTED_TYPES}" unless SUPPORTED_TYPES.include?(docker_filetype)
-        # get the version information from the docker_image
-        os_version = get_docker_version_info(docker_image, DECOMP_METHOD_HASH[docker_filetype])
+        begin
+          # get the filetype for the docker_image
+          docker_filetype = get_file_type(docker_image)
+          # ensure it's a supported filetype
+          raise ProjectHanlon::Error::Slice::InputError, "Unsupported file type '#{docker_filetype}' detected for Docker image '#{docker_image}'; supported types are #{SUPPORTED_TYPES}" unless SUPPORTED_TYPES.include?(docker_filetype)
+          # get the version information from the docker_image
+          os_version = get_docker_version_info(docker_image, DECOMP_METHOD_HASH[docker_filetype])
+        rescue Errno::ENOENT, Errno::EACCES => e
+          # if the file does not exist or file cannot be opened for reading due to permissions,
+          # then throw an error that will be caught by Hanlon and reported properly
+          raise ProjectHanlon::Error::Slice::InputError, "Image file '#{docker_image}' cannot be opened for reading (#{e.message})"
+        rescue ProjectHanlon::Error::Slice::InputError => e
+          # if the underlying method calls raised an error, then add information about which docker_image
+          # was being processed and rethrow the error in a form that Hanlon will detect and handle properly
+          raise ProjectHanlon::Error::Slice::InputError, "Image file '#{docker_image}' #{e.message}"
+        end
         # if no version tag was found, raise an exception
         raise ProjectHanlon::Error::Slice::MissingArgument, 'MK Docker images must include a version tag' unless os_version && os_version != ""
         # otherwise add the Microkernel image to Hanlon
@@ -340,27 +350,17 @@ module ProjectHanlon
 
       def get_docker_version_info(docker_image, zip_method = nil)
         version = nil
-        begin
-          File.open(docker_image, 'rb') { |image|
-            return get_docker_version_from_tar(image) unless zip_method
-            zip_method.call(image) { |file|
-              if file.class == Bzip2::FFI::Reader
-                io = StringIO.new(file.read)
-              else
-                io = file
-              end
-              version = get_docker_version_from_tar(io)
-            }
+        File.open(docker_image, 'rb') { |image|
+          return get_docker_version_from_tar(image) unless zip_method
+          zip_method.call(image) { |file|
+            if file.class == Bzip2::FFI::Reader
+              io = StringIO.new(file.read)
+            else
+              io = file
+            end
+            version = get_docker_version_from_tar(io)
           }
-        rescue Errno::ENOENT, Errno::EACCES => e
-          # if the file does not exist or file cannot be opened for reading due to permissions,
-          # throw an error that will be caught by Hanlon and reported properly
-          raise ProjectHanlon::Error::Slice::InputError, "Image file '#{docker_image}' cannot be opened for reading (#{e.message})"
-        rescue ProjectHanlon::Error::Slice::InputError => e
-          # if the underlying method call raised an error, then add information about which docker_image
-          # was being processed and rethrow the error in a form that Hanlon will detect and handle properly
-          raise ProjectHanlon::Error::Slice::InputError, "Image file '#{docker_image}' #{e.message}"
-        end
+        }
         version
       end
 
