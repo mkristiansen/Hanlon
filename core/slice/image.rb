@@ -328,7 +328,7 @@ module ProjectHanlon
           when /^#{jpg2_regex}/
             'jpg'
           else
-            mime_type = `file #{file_path} --mime-type`.gsub('\n', '') # Works on linux and mac
+            mime_type = `file #{file_path} --mime-type`.gsub("\n", '') # Works on linux and mac
             raise ProjectHanlon::Error::Slice::InputError, "Filetype could not be detected for '#{file_path}'" if !mime_type
             mime_type.split(':')[1].split('/')[1].gsub('x-', '').gsub(/jpeg/, 'jpg').gsub(/text/, 'txt').gsub(/x-/, '')
         end
