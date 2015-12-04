@@ -278,13 +278,17 @@ module ProjectHanlon
       # utility methods (used to add various types of images)
 
       def add_mk(new_image, iso_path, image_path, docker_image, ssh_keyfile, mk_password)
+        # ensure a path was passed in for the docker_image
+        raise ProjectHanlon::Error::Slice::MissingArgument, 'path to docker image must be included for MK images' unless docker_image && docker_image != ""
+        # get the filetype for the docker_image
         docker_filetype = get_file_type(docker_image)
+        # ensure it's a supported filetype
         raise ProjectHanlon::Error::Slice::InputError, "Unsupported file type '#{docker_filetype}' detected for Docker image '#{docker_image}'; supported types are #{SUPPORTED_TYPES}" unless SUPPORTED_TYPES.include?(docker_filetype)
+        # get the version information from the docker_image
         os_version = get_docker_version_info(docker_image, DECOMP_METHOD_HASH[docker_filetype])
-        raise ProjectHanlon::Error::Slice::MissingArgument,
-              'MK Docker images must include a version tag' unless os_version && os_version != ""
-        raise ProjectHanlon::Error::Slice::MissingArgument,
-              'path to docker image must be included for MK images' unless docker_image && docker_image != ""
+        # if no version tag was found, raise an exception
+        raise ProjectHanlon::Error::Slice::MissingArgument, 'MK Docker images must include a version tag' unless os_version && os_version != ""
+        # otherwise add the Microkernel image to Hanlon
         new_image.add(iso_path, image_path, {:os_version => os_version, :docker_image => docker_image,
                                              :ssh_keyfile => ssh_keyfile, :mk_password => mk_password})
       end
@@ -336,27 +340,70 @@ module ProjectHanlon
 
       def get_docker_version_info(docker_image, zip_method = nil)
         version = nil
-        File.open(docker_image, 'rb') { |image|
-          return get_docker_version_from_tar(image) unless zip_method
-          zip_method.call(image) { |file|
-            if file.class == Bzip2::FFI::Reader
-              io = StringIO.new(file.read)
-            else
-              io = file
-            end
-            version = get_docker_version_from_tar(io)
+        begin
+          File.open(docker_image, 'rb') { |image|
+            return get_docker_version_from_tar(image) unless zip_method
+            zip_method.call(image) { |file|
+              if file.class == Bzip2::FFI::Reader
+                io = StringIO.new(file.read)
+              else
+                io = file
+              end
+              version = get_docker_version_from_tar(io)
+            }
           }
-        }
+        rescue Errno::ENOENT, Errno::EACCES => e
+          # if the file does not exist or file cannot be opened for reading due to permissions,
+          # throw an error that will be caught by Hanlon and reported properly
+          raise ProjectHanlon::Error::Slice::InputError, "Image file '#{docker_image}' cannot be opened for reading (#{e.message})"
+        rescue ProjectHanlon::Error::Slice::InputError => e
+          # if the underlying method call raised an error, then add information about which docker_image
+          # was being processed and rethrow the error in a form that Hanlon will detect and handle properly
+          raise ProjectHanlon::Error::Slice::InputError, "Image file '#{docker_image}' #{e.message}"
+        end
         version
       end
 
       def get_docker_version_from_tar(file)
         version = nil
+        is_docker_image = false
+        semantic_versioned_image = false
          Gem::Package::TarReader.new(file) { |tar|
            tar.seek('repositories') { |entry|
+             # if get to here, then the tarfile has a repositories entry in it,
+             # so we'll say it's a Docker image
+             is_docker_image = true
+             # read that file and parse the version info (if it exists) from it
              repo_info = entry.read
-             version = JSON.parse(repo_info).values[0].keys[0]
+             # if it's a Docker file, that entry should be a JSON file
+             # containing a Hash map (in JSON form) with the tag as the
+             # key of the first value in that Hash
+             begin
+               contents_as_hash = JSON.parse(repo_info)
+               first_value = contents_as_hash.values[0]
+               # if the first_value in the Hash is nil or is not itself a Hash, then this isn't a Docker image
+               raise ProjectHanlon::Error::Slice::InputError, "does not contain a Docker image ('repositories' entry does not include a version)" unless first_value and first_value.is_a?(Hash)
+               # Note; in this code we're assuming that the contents of the 'repositories' file contains a JSON
+               # string that looks something like this:
+               #     {"gliderlabs/alpine":{"latest":"2cc966a5578a2339d7aa9c729d6d51c655ac2b68a716ecff05c56a91a05c89d7"}}
+               # we could do more testing of the format of the value we found, but for now we'll just assume that
+               # if we found a JSON string containing a hash where the first value is a Hash we're on the right track.
+               # As such, if we get this far, then take the first key from the first value and return that as the version
+               # for the docker image file
+               version = first_value.keys[0]
+             rescue JSON::ParserError => e
+               # if we get here, then we weren't able to parse the 'repositories' entry as a JSON string, so it's
+               # not a Docker image; throw an appropriate error
+               raise ProjectHanlon::Error::Slice::InputError, "does not contain a Docker image ('repositories' entry cannot be parsed as a JSON string)"
+             end
+             semantic_versioned_image = true if version && /^[\d]+.[\d]+.[\d]+/.match(version)
            }
+           # throw errors if either the image passed in does not contain a 'repositories' entry (in which
+           # case it's not a Docker image) or the version that we found in the image is tagged with is not
+           # a semantic version (in which case the code used by Hanlon to determine which is the 'newest'
+           # Microkernel will not work properly)
+           raise ProjectHanlon::Error::Slice::InputError, "does not contain a Docker image ('repositories' entry cannot be found)" unless is_docker_image
+           raise ProjectHanlon::Error::Slice::InputError, "is tagged with the invalid version '#{version}' (Docker Microkernel Images must be tagged with a semantic version)" unless semantic_versioned_image
          }
         version
       end
