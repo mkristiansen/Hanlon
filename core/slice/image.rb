@@ -399,7 +399,18 @@ module ProjectHanlon
                # not a Docker image; throw an appropriate error
                raise ProjectHanlon::Error::Slice::InputError, "does not contain a Docker image ('repositories' entry cannot be parsed as a JSON string)"
              end
-             semantic_versioned_image = true if version && /^[\d]+.[\d]+.[\d]+/.match(version)
+             # test to see if the version we found looks like a Microkernel version that is
+             # supported by Hanlon (Hanlon supports a 'pseudo-semantic' version for it's Micorkernel);
+             # a true semantic version string might look something like this:
+             #    3.0.0-18-ge369408-dirty
+             # but that string isn't useable as a version string in Docker, so instead we've shifted over
+             # to using a version string that can be used as a Docker tag:
+             #    3.0.0_18-ge369408-dirty
+             # the difference is subtle, but significant; our Microkernel versions are no longer truly a
+             # semantic version, but we are using a version string within Hanlon that is consistent with the
+             # version string used for that same Microkernel image within Docker...hopefully the difference
+             # from previous versions of Hanlon are not too difficult to sort out ;)
+             semantic_versioned_image = true if version && /^(\d+\.\d+\.\d+)(_([0-9A-Za-z-]+))*$/.match(version)
            }
            # throw errors if either the image passed in does not contain a 'repositories' entry (in which
            # case it's not a Docker image) or the version that we found in the image is tagged with is not
