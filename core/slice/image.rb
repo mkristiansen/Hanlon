@@ -380,6 +380,9 @@ module ProjectHanlon
              # key of the first value in that Hash
              begin
                contents_as_hash = JSON.parse(repo_info)
+               # if the contents retrieved from the 'repositories' file are nil or
+               # the contents parsed are not a Hash, then this isn't a Docker image
+               raise ProjectHanlon::Error::Slice::InputError, "does not contain a Docker image ('repositories' file does not contain a JSON Hash)" unless contents_as_hash and contents_as_hash.is_a?(Hash)
                first_value = contents_as_hash.values[0]
                # if the first_value in the Hash is nil or is not itself a Hash, then this isn't a Docker image
                raise ProjectHanlon::Error::Slice::InputError, "does not contain a Docker image ('repositories' entry does not include a version)" unless first_value and first_value.is_a?(Hash)
