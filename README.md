@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/csc/Hanlon.svg?branch=master)](https://travis-ci.org/csc/Hanlon)
 
-# Project Hanlon (v3.0.0)
+# Project Hanlon (v3.0.1)
 
 [![Join the chat at https://gitter.im/csc/Hanlon](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/csc/Hanlon?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
