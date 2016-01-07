@@ -196,7 +196,7 @@ Function Invoke-Main {
                 $SmbiosUuid = $firstFlip + "-" + $secondFlip + "-" + $thirdFlip + "-" + $uuidArray[3] + "-" + $uuidArray[4]
             }
             else {
-                $SmbiosUuid = = $ComputerSystemProduct.UUID
+                $SmbiosUuid = $ComputerSystemProduct.UUID
             }
 
 			Write-Debug $SmbiosUuid
