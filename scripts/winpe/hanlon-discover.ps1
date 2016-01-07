@@ -9,25 +9,6 @@ $HanlonShareName = "Hanlon";
 $DebugPreference = "Continue";
 
 
-
-Function Convert-SmbiosUuid {
-
-Param (
-	[Parameter(Mandatory=$True)]
-	[String]
-	$rawUUID
-)
-
-# Create an array of each half (hyphen delimiter)
-$octets = $rawUUID.Split("-")
-# Create an array of each two-charactere byte (space delimiter)
-$bytes = $octets[0].Split(" ") + $octets[1].Split(" ")
-# Build the final string, piecing together byte by byte
-$prettyUUID = $bytes[0] + $bytes[1] + $bytes[2] + $bytes[3] + "-" + $bytes[4] + $bytes[5] + "-" + $bytes[6] + $bytes[7] + "-" + $bytes[8] + $bytes[9] + "-" + $bytes[10] + $bytes[11] + $bytes[12] + $bytes[13] + $bytes[14] + $bytes[15]
-Return $prettyUUID
-
-}
-
 #When using VirtualBox and Fusion the UUID in the first three sections are "byte flipped".
 #Converted the function in the comments http://intermediaware.com/blog/hack-of-the-day-byte-flipping
 #To use for flipping the bits.
@@ -193,7 +174,7 @@ Function Invoke-Main {
                 $third = [int]("0x"+$uuidArray[2])
                 $thirdFlip =  [Convert]::ToString($(Flip-TwoBytes -value $third), 16)
 
-                $SmbiosUuid = $firstFlip + "-" + $secondFlip + "-" + $thirdFlip + "-" + $uuidArray[3] + "-" + $uuidArray[4]
+                $SmbiosUuid = $($firstFlip + "-" + $secondFlip + "-" + $thirdFlip + "-" + $uuidArray[3] + "-" + $uuidArray[4]).ToUpper()
             }
             else {
                 $SmbiosUuid = $ComputerSystemProduct.UUID
