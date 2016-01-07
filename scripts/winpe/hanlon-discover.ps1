@@ -35,7 +35,7 @@ Return $prettyUUID
 Function Flip-FourBytes {
 Param (
     [Parameter(Mandatory=$True)]
-    [uint]
+    [uint64]
     $value)
 
     return (($value -band 0x000000FF) -shl 24) -bor (($value -band 0x0000FF00) -shl 8) -bor (($value -band 0x00FF0000) -shr 8) -bor (($value -band 0xFF000000) -shr 24)
