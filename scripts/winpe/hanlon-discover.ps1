@@ -35,7 +35,7 @@ Return $prettyUUID
 Function Flip-FourBytes {
 Param (
     [Parameter(Mandatory=$True)]
-    [int]
+    [uint]
     $value)
 
     return (($value -band 0x000000FF) -shl 24) -bor (($value -band 0x0000FF00) -shl 8) -bor (($value -band 0x00FF0000) -shr 8) -bor (($value -band 0xFF000000) -shr 24)
@@ -186,7 +186,7 @@ Function Invoke-Main {
             if( $ComputerSystemProduct.Name -like "*virtual*" ) {
                 $uuidArray = $ComputerSystemProduct.UUID.split("-")
 
-                $first = [int]("0x"+$uuidArray[0])
+                $first = [uint64]("0x"+$uuidArray[0])
                 $firstFlip = [Convert]::ToString($(Flip-FourBytes -value $first), 16)
                 $second = [int]("0x"+$uuidArray[1])
                 $secondFlip =  [Convert]::ToString($(Flip-TwoBytes -value $second), 16)
