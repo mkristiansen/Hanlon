@@ -9,24 +9,28 @@ $HanlonShareName = "Hanlon";
 $DebugPreference = "Continue";
 
 
+#When using VirtualBox and Fusion the UUID in the first three sections are "byte flipped".
+#Converted the function in the comments http://intermediaware.com/blog/hack-of-the-day-byte-flipping
+#To use for flipping the bits.
 
-Function Convert-SmbiosUuid {
-
+Function Flip-FourBytes {
 Param (
-	[Parameter(Mandatory=$True)]
-	[String]
-	$rawUUID
-)
+    [Parameter(Mandatory=$True)]
+    [uint64]
+    $value)
 
-# Create an array of each half (hyphen delimiter)
-$octets = $rawUUID.Split("-")
-# Create an array of each two-charactere byte (space delimiter)
-$bytes = $octets[0].Split(" ") + $octets[1].Split(" ")
-# Build the final string, piecing together byte by byte
-$prettyUUID = $bytes[0] + $bytes[1] + $bytes[2] + $bytes[3] + "-" + $bytes[4] + $bytes[5] + "-" + $bytes[6] + $bytes[7] + "-" + $bytes[8] + $bytes[9] + "-" + $bytes[10] + $bytes[11] + $bytes[12] + $bytes[13] + $bytes[14] + $bytes[15]
-Return $prettyUUID
-
+    return (($value -band 0x000000FF) -shl 24) -bor (($value -band 0x0000FF00) -shl 8) -bor (($value -band 0x00FF0000) -shr 8) -bor (($value -band 0xFF000000) -shr 24)
 }
+
+Function Flip-TwoBytes {
+Param (
+    [Parameter(Mandatory=$True)]
+    [int]
+    $value)
+
+    return (($value -band 0x000000FF) -shl 8) -bor (($value -band 0x0000FF00) -shr 8)
+}
+
 
 Function Get-HanlonDhcpOptionValue {
 	[CmdletBinding()]
@@ -158,22 +162,22 @@ Function Invoke-Main {
 		try {
 			$HanlonServerSettings = Get-HanlonServerParameters 
 
-            $IdentifyingNumber = (Get-WmiObject win32_computersystemproduct).IdentifyingNumber
+            $ComputerSystemProduct = Get-WmiObject Win32_ComputerSystemProduct
 
-            $result = [regex]::match($IdentifyingNumber,'VMware\-(.*)').Groups[1]
+            if( $ComputerSystemProduct.Name -like "*virtual*" ) {
+                $uuidArray = $ComputerSystemProduct.UUID.split("-")
 
-            Write-Debug $result
+                $first = [uint64]("0x"+$uuidArray[0])
+                $firstFlip = [Convert]::ToString($(Flip-FourBytes -value $first), 16)
+                $second = [int]("0x"+$uuidArray[1])
+                $secondFlip =  [Convert]::ToString($(Flip-TwoBytes -value $second), 16)
+                $third = [int]("0x"+$uuidArray[2])
+                $thirdFlip =  [Convert]::ToString($(Flip-TwoBytes -value $third), 16)
 
-            if( $result.Success ) {
-                Write-Debug "Begin If"
-                $SmbiosUuid = Convert-SmbiosUuid -rawUUID $result.Value
-                Write-Debug "End If"
+                $SmbiosUuid = $($firstFlip + "-" + $secondFlip + "-" + $thirdFlip + "-" + $uuidArray[3] + "-" + $uuidArray[4]).ToUpper()
             }
             else {
-                Write-Debug "Begin Else"
-                $SmbiosUuid = (get-wmiobject win32_computersystemproduct).uuid
-                Write-Debug "End Else"
-
+                $SmbiosUuid = $ComputerSystemProduct.UUID
             }
 
 			Write-Debug $SmbiosUuid
@@ -191,7 +195,7 @@ Function Invoke-Main {
 
             iex ((new-object net.webclient).DownloadString("$hanlonBaseUri/policy/callback/$uuid/install/file")) 
 
-	}
+	    }
 		catch {
 			write-host "Exception $($_.Exception.GetType().FullName), Message: $($_.Exception.Message), Line Number: $($_.InvocationInfo.ScriptLineNumber), Offset Inline: $($_.InvocationInfo.OffsetInLine)" -ForegroundColor Red
 		}
