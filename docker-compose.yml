@@ -21,7 +21,7 @@ server:
 #    HANLON_SUBNETS: "${HANLON_SUBNETS}"
 
 tftpd:
-  image: "atftpd"
+  image: "cscdock/atftpd"
   links: 
     - "server:hanlon"
   ports:
