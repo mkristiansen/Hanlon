@@ -16,7 +16,7 @@ module ProjectHanlon
         # Static config
         @hidden = false
         @name = "ubuntu_oneiric"
-        @description = "Ubuntu Oneiric Model"
+        @description = "Ubuntu Oneiric (11.10) Model"
         # Metadata vars
         @hostname_prefix = nil
         # State / must have a starting state
