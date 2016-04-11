@@ -1,0 +1,7 @@
+#!/bin/bash
+echo Hanlon policy successfully applied > /tmp/hanlon_complete.log
+echo Model <%= @label %> - <%= @description %> >> /tmp/hanlon_complete.log
+echo Image UUID <%= @image_uuid %> >> /tmp/hanlon_complete.log
+echo Node UUID: <%= @node.uuid %> >> /tmp/hanlon_complete.log
+
+sed -i '/hanlon_postinstall/d' /etc/rc.local
