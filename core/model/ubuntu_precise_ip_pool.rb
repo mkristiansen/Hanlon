@@ -13,7 +13,7 @@ module ProjectHanlon
         # Static config
         @hidden          = false
         @name            = "ubuntu_precise_ip_pool"
-        @description     = "Ubuntu Precise Model (IP Pool)"
+        @description     = "Ubuntu Precise (12.04) Model (IP Pool)"
         # Metadata vars
         @hostname_prefix = nil
         # State / must have a starting state
