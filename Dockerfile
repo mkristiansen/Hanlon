@@ -1,6 +1,6 @@
 # Hanlon server
 #
-# VERSION 3.0.0
+# VERSION 3.0.1
 
 FROM ruby:2.2
 MAINTAINER Joseph Callen <jcpowermac@gmail.com>

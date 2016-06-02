@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    project_hanlon (3.0.0)
+    project_hanlon (3.0.1)
       base62 (~> 1.0)
       bzip2-ffi (~> 1.0)
       cassandra-driver (~> 2.1)

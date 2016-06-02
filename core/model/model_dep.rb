@@ -34,6 +34,11 @@ require 'model/oraclelinux_6'
 require 'model/ubuntu_oneiric'
 require 'model/ubuntu_precise'
 require 'model/ubuntu_precise_ip_pool'
+require 'model/ubuntu_quantal'
+require 'model/ubuntu_raring'
+require 'model/ubuntu_trusty'
+require 'model/ubuntu_vivid'
+require 'model/ubuntu_xenial'
 
 # level 3 - debian
 require 'model/debian_wheezy'

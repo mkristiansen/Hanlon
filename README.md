@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/csc/Hanlon.svg?branch=master)](https://travis-ci.org/csc/Hanlon)
 
-# Project Hanlon (v3.0.0)
+# Project Hanlon (v3.0.1)
 
 [![Join the chat at https://gitter.im/csc/Hanlon](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/csc/Hanlon?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
@@ -53,18 +53,10 @@ This is the official list of users with "committer" rights to the
 Hanlon project.  [For details on what that means, see the CONTRIBUTING
 guide in the repository][contrib]
 
-* [Nicholas Weaver](https://github.com/lynxbat)
-* [Tom McSweeney](https://github.com/tjmcs)
-* [Nan Liu](https://github.com/nanliu)
+* Russell Teague [GitHub](https://github.com/mtnbikenc) [Twitter](https://twitter.com/mtnbikenc)
+* Joseph Callen [GitHub](https://github.com/jcpowermac) [Twitter](https://twitter.com/jcpowermac)
 
-If you can't figure out who to contact,
-[Tom McSweeney](https://github.com/tjmcs) is the best first point of
-contact for the project.  (Find me at Tom McSweeney <tjmcs@bendbroadband.com>)
-
-This is a hand-maintained list, thanks to the limits of technology.
-Please let [Tom McSweeney](https://github.com/tjmcs) know if you run
-into any errors or omissions in that list.
-
+Please reach out to us if you have any questions about the project.
 
 ## Hanlon MicroKernel
 

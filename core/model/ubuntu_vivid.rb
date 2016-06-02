@@ -5,15 +5,15 @@ module ProjectHanlon
   module ModelTemplate
     # Root Model object
     # @abstract
-    class UbuntuPrecise < Ubuntu
+    class UbuntuVivid < Ubuntu
       include(ProjectHanlon::Logging)
 
       def initialize(hash)
         super(hash)
         # Static config
         @hidden = false
-        @name = "ubuntu_precise"
-        @description = "Ubuntu Precise (12.04) Model"
+        @name = "ubuntu_vivid"
+        @description = "Ubuntu Vivid (15.04) Model"
         # Metadata vars
         @hostname_prefix = nil
         # State / must have a starting state
@@ -24,7 +24,7 @@ module ProjectHanlon
         @image_prefix = "os"
         # Enable agent brokers for this model
         @broker_plugin = :agent
-        @osversion = 'precise'
+        @osversion = 'vivid'
         @final_state = :os_complete
         from_hash(hash) unless hash == nil
       end

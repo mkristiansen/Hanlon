@@ -3,7 +3,7 @@ raise 'Ruby should be ~>2.2' unless RUBY_VERSION.to_f >= 2.2
 
 Gem::Specification.new do |s|
   s.name        = 'project_hanlon'
-  s.version     = '3.0.0'
+  s.version     = '3.0.1'
   s.licenses    = 'Apache-2.0'
   s.date        = '2015-11-15'
   s.summary     = 'Project Hanlon'
