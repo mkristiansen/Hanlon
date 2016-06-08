@@ -67,7 +67,7 @@ module Facter::Util::IP
           output.split('\n').each do |s|
             if s =~ regex
               value = $1
-              if label == 'netmask' && convert_from_hex?(kernel)
+              if label == 'netmask' && convert_from_hex?(Facter.value(:kernel).downcase.to_sym)
                 value = value.scan(/../).collect do |byte| byte.to_i(16) end.join('.')
               end
               tmp1.push(value)
